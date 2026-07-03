@@ -4,7 +4,16 @@ declare(strict_types=1);
 
 namespace Coffesoft\LaravelBeacon\Providers;
 
-use Coffesoft\LaravelBeacon\Commands\ContextCommand;
+use Coffesoft\LaravelBeacon\Builder\ContextBuilder;
+use Coffesoft\LaravelBeacon\Console\BeaconExportCommand;
+use Coffesoft\LaravelBeacon\Console\BeaconScanCommand;
+use Coffesoft\LaravelBeacon\Exporter\JsonExporter;
+use Coffesoft\LaravelBeacon\Exporter\MarkdownExporter;
+use Coffesoft\LaravelBeacon\Intelligence\ModuleDetector;
+use Coffesoft\LaravelBeacon\Scanner\ControllerScanner;
+use Coffesoft\LaravelBeacon\Scanner\MigrationScanner;
+use Coffesoft\LaravelBeacon\Scanner\ModelScanner;
+use Coffesoft\LaravelBeacon\Scanner\RouteScanner;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -21,6 +30,32 @@ class BeaconServiceProvider extends PackageServiceProvider
         $package
             ->name('laravel-beacon')
             ->hasConfigFile('beacon')
-            ->hasCommand(ContextCommand::class);
+            ->hasCommand(BeaconScanCommand::class)
+            ->hasCommand(BeaconExportCommand::class);
+    }
+
+    /**
+     * Register package bindings.
+     */
+    public function packageRegistered(): void
+    {
+        $this->app->singleton(ModelScanner::class);
+        $this->app->singleton(ControllerScanner::class);
+        $this->app->singleton(RouteScanner::class);
+        $this->app->singleton(MigrationScanner::class);
+        $this->app->singleton(ModuleDetector::class);
+
+        $this->app->singleton(ContextBuilder::class, function ($app) {
+            return new ContextBuilder(
+                $app->make(ModelScanner::class),
+                $app->make(ControllerScanner::class),
+                $app->make(RouteScanner::class),
+                $app->make(MigrationScanner::class),
+                $app->make(ModuleDetector::class),
+            );
+        });
+
+        $this->app->singleton(MarkdownExporter::class);
+        $this->app->singleton(JsonExporter::class);
     }
 }

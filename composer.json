@@ -1,6 +1,6 @@
 {
     "name": "coffesoft/laravel-beacon",
-    "description": "AI Context Engine for Laravel Applications",
+    "description": "Laravel Project Context Generator — Scan, understand, and export clean context for AI-assisted development",
     "type": "library",
     "license": "MIT",
     "autoload": {
@@ -23,11 +23,11 @@
     ],
     "minimum-stability": "stable",
     "require": {
-"illuminate/support": "^11.0",
-"illuminate/console": "^11.0",
+        "illuminate/support": "^11.0",
+        "illuminate/console": "^11.0",
         "spatie/laravel-package-tools": "^1.93"
     },
     "require-dev": {
-        "orchestra/testbench": "^11.1"
+        "orchestra/testbench": "^9.0"
     }
 }
