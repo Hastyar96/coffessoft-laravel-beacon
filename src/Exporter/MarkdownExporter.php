@@ -8,7 +8,7 @@ use Coffesoft\LaravelBeacon\Context\Context;
 use Illuminate\Support\Facades\File;
 
 /**
- * Exports Context to a clean, AI-ready markdown file.
+ * Exports Context to a clean, AI-ready markdown file with table of contents.
  */
 class MarkdownExporter
 {
@@ -40,12 +40,18 @@ class MarkdownExporter
         $lines[] = '---';
         $lines[] = '';
 
+        $this->addTableOfContents($lines);
+        $lines[] = '---';
+        $lines[] = '';
+
         $this->addProjectOverview($lines, $context);
+        $this->addStatistics($lines, $context);
         $this->addArchitecture($lines, $context);
+        $this->addConfiguration($lines, $context);
         $this->addModels($lines, $context);
         $this->addControllers($lines, $context);
         $this->addRoutes($lines, $context);
-        $this->addMigrations($lines, $context);
+        $this->addDatabase($lines, $context);
 
         $lines[] = '---';
         $lines[] = '';
@@ -53,6 +59,21 @@ class MarkdownExporter
         $lines[] = '';
 
         return implode("\n", $lines);
+    }
+
+    private function addTableOfContents(array &$lines): void
+    {
+        $lines[] = '## Table of Contents';
+        $lines[] = '';
+        $lines[] = '1. [Project Overview](#1-project-overview)';
+        $lines[] = '2. [Project Statistics](#2-project-statistics)';
+        $lines[] = '3. [Architecture](#3-architecture)';
+        $lines[] = '4. [Configuration](#4-configuration)';
+        $lines[] = '5. [Models](#5-models)';
+        $lines[] = '6. [Controllers](#6-controllers)';
+        $lines[] = '7. [Routes](#7-routes)';
+        $lines[] = '8. [Database](#8-database)';
+        $lines[] = '';
     }
 
     private function addProjectOverview(array &$lines, Context $context): void
@@ -72,11 +93,40 @@ class MarkdownExporter
         $lines[] = '';
     }
 
+    private function addStatistics(array &$lines, Context $context): void
+    {
+        $stats = $context->get('statistics', []);
+
+        $lines[] = '## 2. Project Statistics';
+        $lines[] = '';
+
+        if (empty($stats)) {
+            $lines[] = 'No statistics available.';
+            $lines[] = '';
+            return;
+        }
+
+        $lines[] = '| Component | Count |';
+        $lines[] = '|---|---|';
+
+        $order = ['models', 'controllers', 'routes', 'migrations', 'seeders', 'factories',
+                   'policies', 'events', 'listeners', 'jobs', 'notifications', 'mail',
+                   'commands', 'middleware', 'requests', 'providers', 'enums', 'traits'];
+
+        foreach ($order as $key) {
+            if (isset($stats[$key]) && $stats[$key] > 0) {
+                $lines[] = '| ' . ucfirst(str_replace('_', ' ', $key)) . ' | ' . $stats[$key] . ' |';
+            }
+        }
+
+        $lines[] = '';
+    }
+
     private function addArchitecture(array &$lines, Context $context): void
     {
         $modules = $context->get('modules.modules', []);
 
-        $lines[] = '## 2. Architecture';
+        $lines[] = '## 3. Architecture';
         $lines[] = '';
 
         if (empty($modules)) {
@@ -85,11 +135,58 @@ class MarkdownExporter
             return;
         }
 
-        $lines[] = '| Module | Routes |';
-        $lines[] = '|---|---|';
+        $lines[] = '| Module | Routes | Source |';
+        $lines[] = '|---|---|---|';
 
         foreach ($modules as $module) {
-            $lines[] = '| ' . $module['label'] . ' | ' . $module['route_count'] . ' |';
+            $source = $module['source'] ?? 'auto';
+            $lines[] = '| ' . $module['label'] . ' | ' . $module['route_count'] . ' | ' . $source . ' |';
+        }
+
+        $lines[] = '';
+    }
+
+    private function addConfiguration(array &$lines, Context $context): void
+    {
+        $config = $context->get('configuration', []);
+
+        $lines[] = '## 4. Configuration';
+        $lines[] = '';
+
+        if (empty($config)) {
+            $lines[] = 'No configuration data available.';
+            $lines[] = '';
+            return;
+        }
+
+        $app = $config['app'] ?? [];
+        if (! empty($app)) {
+            $lines[] = '### Application';
+            $lines[] = '';
+            $lines[] = '| Setting | Value |';
+            $lines[] = '|---|---|';
+            $lines[] = '| Name | ' . ($app['name'] ?? 'N/A') . ' |';
+            $lines[] = '| Environment | ' . ($app['env'] ?? 'N/A') . ' |';
+            $lines[] = '| Debug | ' . ($app['debug'] === true ? 'true' : ($app['debug'] === false ? 'false' : 'N/A')) . ' |';
+            $lines[] = '| URL | ' . ($app['url'] ?? 'N/A') . ' |';
+            $lines[] = '| Timezone | ' . ($app['timezone'] ?? 'N/A') . ' |';
+            $lines[] = '| Locale | ' . ($app['locale'] ?? 'N/A') . ' |';
+            $lines[] = '';
+        }
+
+        $sections = [
+            'Queue' => $config['queue'] ?? [],
+            'Cache' => $config['cache'] ?? [],
+            'Session' => $config['session'] ?? [],
+            'Filesystem' => $config['filesystem'] ?? [],
+            'Mail' => $config['mail'] ?? [],
+        ];
+
+        foreach ($sections as $title => $data) {
+            if (! empty($data)) {
+                $driver = $data['driver'] ?? $data['default_disk'] ?? 'N/A';
+                $lines[] = '| **' . $title . '** | Driver: ' . $driver . ' |';
+            }
         }
 
         $lines[] = '';
@@ -99,7 +196,7 @@ class MarkdownExporter
     {
         $items = $context->get('models.items', []);
 
-        $lines[] = '## 3. Models';
+        $lines[] = '## 5. Models';
         $lines[] = '';
 
         if (empty($items)) {
@@ -114,6 +211,24 @@ class MarkdownExporter
             $lines[] = '- **Namespace:** `' . $model['namespace'] . '`';
             $lines[] = '- **Path:** `' . $model['path'] . '`';
 
+            $fillable = $model['fillable'] ?? [];
+            if (! empty($fillable)) {
+                $lines[] = '- **Fillable:** `' . implode('`, `', $fillable) . '`';
+            }
+
+            $guarded = $model['guarded'] ?? [];
+            if (! empty($guarded)) {
+                $lines[] = '- **Guarded:** `' . implode('`, `', $guarded) . '`';
+            }
+
+            $casts = $model['casts'] ?? [];
+            if (! empty($casts)) {
+                $lines[] = '- **Casts:**';
+                foreach ($casts as $field => $type) {
+                    $lines[] = '  - `' . $field . '` → ' . $type;
+                }
+            }
+
             $relations = $model['relations'] ?? [];
             if (! empty($relations)) {
                 $lines[] = '- **Relationships:**';
@@ -122,9 +237,24 @@ class MarkdownExporter
                 }
             }
 
-            $fillable = $model['fillable'] ?? [];
-            if (! empty($fillable)) {
-                $lines[] = '- **Fillable:** `' . implode('`, `', $fillable) . '`';
+            $traits = $model['traits'] ?? [];
+            if (! empty($traits)) {
+                $lines[] = '- **Traits:** `' . implode('`, `', $traits) . '`';
+            }
+
+            $scopes = $model['scopes'] ?? [];
+            if (! empty($scopes)) {
+                $lines[] = '- **Scopes:** `' . implode('`, `', $scopes) . '`';
+            }
+
+            $accessors = $model['accessors'] ?? [];
+            if (! empty($accessors)) {
+                $lines[] = '- **Accessors:** `' . implode('`, `', $accessors) . '`';
+            }
+
+            $mutators = $model['mutators'] ?? [];
+            if (! empty($mutators)) {
+                $lines[] = '- **Mutators:** `' . implode('`, `', $mutators) . '`';
             }
 
             $lines[] = '';
@@ -135,7 +265,7 @@ class MarkdownExporter
     {
         $items = $context->get('controllers.items', []);
 
-        $lines[] = '## 4. Controllers';
+        $lines[] = '## 6. Controllers';
         $lines[] = '';
 
         if (empty($items)) {
@@ -153,15 +283,17 @@ class MarkdownExporter
         foreach ($groups as $group => $controllers) {
             $lines[] = '### Group: `' . $group . '`';
             $lines[] = '';
-            $lines[] = '| Controller | Methods |';
-            $lines[] = '|---|---|';
+            $lines[] = '| Controller | CRUD | Methods | Middleware |';
+            $lines[] = '|---|---|---|---|';
 
             foreach ($controllers as $c) {
-                $methods = implode(', ', array_slice($c['methods'] ?? [], 0, 10));
-                if (count($c['methods'] ?? []) > 10) {
+                $crud = $c['is_crud'] ? 'Yes' : '';
+                $methods = implode(', ', array_slice($c['methods'] ?? [], 0, 8));
+                if (count($c['methods'] ?? []) > 8) {
                     $methods .= ', ...';
                 }
-                $lines[] = '| ' . $c['name'] . ' | `' . $methods . '` |';
+                $mw = ! empty($c['middleware']) ? implode(', ', $c['middleware']) : '';
+                $lines[] = '| ' . $c['name'] . ' | ' . $crud . ' | `' . $methods . '` | ' . $mw . ' |';
             }
 
             $lines[] = '';
@@ -172,7 +304,7 @@ class MarkdownExporter
     {
         $groups = $context->get('routes.groups', []);
 
-        $lines[] = '## 5. Routes';
+        $lines[] = '## 7. Routes';
         $lines[] = '';
 
         if (empty($groups)) {
@@ -191,26 +323,48 @@ class MarkdownExporter
         $lines[] = '';
     }
 
-    private function addMigrations(array &$lines, Context $context): void
+    private function addDatabase(array &$lines, Context $context): void
     {
-        $items = $context->get('migrations.items', []);
-        $tables = $context->get('migrations.tables', []);
+        $database = $context->get('database', []);
 
-        $lines[] = '## 6. Migrations';
+        $lines[] = '## 8. Database';
         $lines[] = '';
 
-        if (! empty($tables)) {
-            $lines[] = '| Table |';
-            $lines[] = '|---|---|';
-            foreach ($tables as $table) {
-                $lines[] = '| `' . $table . '` |';
-            }
+        if (empty($database) || empty($database['tables'])) {
+            $lines[] = 'No database schema detected.';
             $lines[] = '';
-            $lines[] = 'Total: ' . count($items) . ' migration files, ' . count($tables) . ' tables.';
-        } else {
-            $lines[] = 'No migrations detected.';
+            return;
         }
 
+        $lines[] = '### Pivot Tables';
+        $lines[] = '';
+        $pivots = $database['pivot_tables'] ?? [];
+
+        if (! empty($pivots)) {
+            foreach ($pivots as $pivot) {
+                $lines[] = '- `' . $pivot . '`';
+            }
+        } else {
+            $lines[] = 'None detected.';
+        }
+        $lines[] = '';
+
+        $lines[] = '### Tables';
+        $lines[] = '';
+        $lines[] = '| Table | Columns | Foreign Keys | Timestamps | Soft Deletes | Pivot |';
+        $lines[] = '|---|---|---|---|---|---|';
+
+        foreach ($database['tables'] as $table) {
+            $colCount = count($table['columns'] ?? []);
+            $fkCount = count($table['foreign_keys'] ?? []);
+            $ts = $table['has_timestamps'] ? 'Yes' : '';
+            $sd = $table['has_soft_deletes'] ? 'Yes' : '';
+            $isPivot = $table['is_pivot'] ? 'Yes' : '';
+            $lines[] = '| `' . $table['name'] . '` | ' . $colCount . ' | ' . $fkCount . ' | ' . $ts . ' | ' . $sd . ' | ' . $isPivot . ' |';
+        }
+
+        $lines[] = '';
+        $lines[] = '**Total Foreign Keys:** ' . ($database['total_foreign_keys'] ?? 0);
         $lines[] = '';
     }
 }

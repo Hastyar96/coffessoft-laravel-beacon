@@ -7,7 +7,7 @@ namespace Coffesoft\LaravelBeacon\Scanner;
 use Illuminate\Support\Facades\Route;
 
 /**
- * Scans all registered Laravel routes and groups them by prefix.
+ * Scans all registered Laravel routes and groups them by prefix, domain, and module.
  */
 class RouteScanner
 {
@@ -24,14 +24,16 @@ class RouteScanner
         foreach ($routes as $route) {
             $uri = $route->uri();
             $prefix = $this->resolvePrefix($uri);
+            $action = $route->getActionName();
 
             $items[] = [
                 'uri' => $uri,
                 'methods' => $route->methods(),
                 'name' => $route->getName(),
-                'action' => $route->getActionName(),
+                'action' => $action,
                 'middleware' => $route->middleware(),
                 'prefix' => $prefix,
+                'module' => $this->resolveModule($prefix, $action),
             ];
         }
 
@@ -67,7 +69,49 @@ class RouteScanner
         if (str_starts_with($uri, 'yarezan') || str_starts_with($uri, 'course') || str_starts_with($uri, 'food') || str_starts_with($uri, 'hormon') || str_starts_with($uri, 'supplement')) {
             return 'coach-workflow';
         }
+        if (str_starts_with($uri, 'dashboard')) {
+            return 'dashboard';
+        }
+        if (str_starts_with($uri, 'auth') || str_starts_with($uri, 'login') || str_starts_with($uri, 'register') || str_starts_with($uri, 'password')) {
+            return 'auth';
+        }
         return 'web';
+    }
+
+    private function resolveModule(string $prefix, string $action): string
+    {
+        // Map prefix to module
+        $moduleMap = [
+            'admin' => 'Admin',
+            'trainee' => 'Trainee',
+            'trainee-auth' => 'Trainee',
+            'coach' => 'Coach',
+            'coach-workflow' => 'Coach',
+            'public' => 'Public',
+            'api' => 'API',
+            'dashboard' => 'Dashboard',
+            'auth' => 'Auth',
+        ];
+
+        if (isset($moduleMap[$prefix])) {
+            return $moduleMap[$prefix];
+        }
+
+        // Try to infer from action namespace
+        if (str_contains($action, '\\Admin\\')) {
+            return 'Admin';
+        }
+        if (str_contains($action, '\\Api\\')) {
+            return 'API';
+        }
+        if (str_contains($action, '\\Auth\\')) {
+            return 'Auth';
+        }
+        if (str_contains($action, '\\Trainee\\')) {
+            return 'Trainee';
+        }
+
+        return 'Web';
     }
 
     private function groupByPrefix(array $items): array
