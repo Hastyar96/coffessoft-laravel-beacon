@@ -1,8 +1,8 @@
-# Laravel Beacon
+# Laravel Beacon v5.0
 
-**Laravel Project Context Generator**
+**AI Development Copilot for Laravel** — Scan, understand, analyze, and improve any Laravel project.
 
-Scan any Laravel project and export clean, structured context for AI-assisted development.
+Transform static project analysis into actionable AI context. Beacon helps AI assistants (ChatGPT, Claude, Gemini, Cursor, Cline, Copilot) understand a Laravel project almost as if they had been developed together with the original team from day one.
 
 ---
 
@@ -10,6 +10,18 @@ Scan any Laravel project and export clean, structured context for AI-assisted de
 
 ```bash
 composer require coffesoft/laravel-beacon
+
+# Full project scan (recommended first step)
+php artisan beacon:scan
+
+# Generate task-specific AI context
+php artisan beacon:task "Create attendance system"
+
+# Code quality review
+php artisan beacon:review --min-severity=warning
+
+# AI-powered refactoring plan
+php artisan beacon:fix-plan
 ```
 
 The service provider auto-discovers via Laravel package discovery.
@@ -19,7 +31,7 @@ The service provider auto-discovers via Laravel package discovery.
 ## Compatibility
 
 | Laravel | PHP | Support Level |
-|---|---|---|
+|---------|-----|--------------|
 | 11.x | 8.1–8.4 | ✅ Official |
 | 10.x | 8.1–8.3 | ✅ Official |
 | 9.x | 8.1–8.2 | ✅ Official |
@@ -27,48 +39,155 @@ The service provider auto-discovers via Laravel package discovery.
 
 ---
 
-## Commands
+## Commands (8 total)
+
+### Core Commands
 
 ```bash
-# Scan the project and display a summary
+# Full project scan — runs all 25 scanners + 35 intelligence engines
 php artisan beacon:scan
 
-# Export context as Markdown
+# Re-export from cached scan data
 php artisan beacon:export --format=md
-
-# Export context as structured JSON
 php artisan beacon:export --format=json
+```
 
-# Export to a custom location
-php artisan beacon:export --format=md --output=custom/path/context.md
+### AI Working Context (v4)
+
+```bash
+# Generate task-specific context for AI assistants
+php artisan beacon:task "Create attendance system"
+
+# Show project changes since last scan
+php artisan beacon:diff
+
+# Code quality review with severity ranking
+php artisan beacon:review --min-severity=warning
+```
+
+### AI Copilot (v5.0 — NEW)
+
+```bash
+# Full AI refactoring plan with priorities and execution order
+php artisan beacon:fix-plan
+
+# Code fix suggestions from review output
+php artisan beacon:suggest-fix
+
+# Route quality analysis (duplicates, orphans, REST violations)
+php artisan beacon:route-health
 ```
 
 ---
 
-## Output
+## Output Files
 
-### context.md
-Six-section markdown document with factual project data:
-1. **Project Overview** — Framework, PHP version, counts
-2. **Architecture** — Detected modules
-3. **Models** — Namespace, relationships, fillable fields
-4. **Controllers** — Grouped by subdirectory with method lists
-5. **Routes** — Grouped by prefix
-6. **Migrations** — Table names and totals
+All outputs are stored in `storage/app/beacon/`.
 
-### context.json
-Strict structured JSON — only factual scanned data.
+### Analysis Outputs
+
+| File | Format | Content |
+|------|--------|---------|
+| `context.json` | JSON | Complete structured project data |
+| `context.md` | Markdown | AI-readable project overview |
+| `knowledge-graph.json` | JSON | Nodes + edges relationship graph |
+| `semantic-index.json` | JSON | Class-level semantic metadata |
+| `search-index.json` | JSON | Pre-computed answers to common questions |
+
+### AI Working Context (v4)
+
+| File | Format | Content |
+|------|--------|---------|
+| `ai-context.md` | Markdown | LLM-optimized project summary |
+| `ai-summary.md` | Markdown | Class-by-class summaries |
+| `developer-guide.md` | Markdown | Onboarding guide for new developers |
+| `prompts.md` | Markdown | 10 reusable AI prompts |
+| `task-context.md` | Markdown | Task-specific development context |
+| `diff.md` | Markdown | Project changes since last scan |
+| `review.md` | Markdown | Code quality findings with severity |
+
+### AI Copilot (v5.0 — NEW)
+
+| File | Format | Content |
+|------|--------|---------|
+| `fix-suggestions.json` | JSON | Actionable code fix suggestions |
+| `fix-suggestions.md` | Markdown | Human-readable fix descriptions |
+| `route-health.json` | JSON | Route quality analysis |
+| `route-health.md` | Markdown | Route health report |
+| `refactor-plan.json` | JSON | Prioritized refactoring actions |
+| `refactor-plan.md` | Markdown | 3-phase execution plan |
+
+---
+
+## Architecture
+
+```
+25 Scanners → Raw Data → 35 Intelligence Engines → 15+ Output Files
+
+v2 Scanners (25):
+  Models, Controllers, Routes, Migrations, Database, Config,
+  Services, Repositories, FormRequests, Middleware, Policies,
+  Events, Jobs, Notifications, Mail, Traits, Enums, Helpers,
+  Livewire, Blade, API, Queue, Storage, Packages, Commands
+
+v2-v4 Intelligence (30 engines):
+  Architecture Detection, Security Analysis, Performance Analysis,
+  Business Rules, Relationship Graph, AI Summaries,
+  Database Intelligence, Route Intelligence, Folder Tree,
+  Workflow Detection, Dependency Graph, Feature Map,
+  Impact Map, AI Context Compression, Entry Points,
+  Developer Onboarding, AI Prompt Pack,
+  Knowledge Graph, Semantic Index, Search Index,
+  Architecture Knowledge, Feature Stories,
+  Task Context, Diff Engine, Review Engine,
+  Enhanced Statistics, AI Summary, AI Navigation
+
+v5.0 AI Copilot (5 NEW engines):
+  AutoControllerSplitter — Detects controllers with >10 methods
+  CodeFixEngine — Actionable patch suggestions (read-only)
+  RouteHealthEngine — Orphan/duplicate/unnamed route detection
+  ModelDependencyTracker++ — Coupling heatmap per model
+  AiRefactorPlanner — 3-phase prioritized execution plan
+```
+
+---
+
+## Safety
+
+- **Read-only** — Never executes or modifies application code
+- **AST-first** — Uses PHP tokenization for safe analysis
+- **Zero application boot** — No database queries, no service registration
+- **Confidence scores** — Every finding includes 0–100 reliability rating
+- **Evidence field** — Every suggestion includes the data that triggered it
 
 ---
 
 ## What It Scans
 
-| Scanner | Source | Data |
-|---|---|---|
-| ModelScanner | `app/Models/` | Class names, Eloquent relationships, fillable fields |
-| ControllerScanner | `app/Http/Controllers/` | Class names, public methods, subdirectory grouping |
-| RouteScanner | All registered routes | URI, methods, names, actions, middleware |
-| MigrationScanner | `database/migrations/` | Timestamps, table names, column types |
+| Category | Source | Data Collected |
+|----------|--------|----------------|
+| Models | `app/Models/` | Attributes, casts, relations, scopes, accessors, mutators, traits |
+| Controllers | `app/Http/Controllers/` | Methods, CRUD detection, middleware, validation |
+| Routes | Registered routes | URI, methods, names, actions, middleware, groups |
+| Services | `app/Services/`, Actions, UseCases | Dependencies, methods, referenced models/events/jobs |
+| Events | `app/Events/`, `app/Listeners/` | Events, listeners, subscribers, dispatchers |
+| Jobs | `app/Jobs/` | Queued/sync, dispatch locations, unique locking |
+| Notifications | `app/Notifications/` | Channels (mail, database, broadcast, SMS) |
+| Database | `database/migrations/` | Tables, columns, indexes, foreign keys |
+| API | `app/Http/Resources/` | Resources, controllers, Sanctum/Passport/JWT |
+| Packages | `composer.json` | Categorized with purpose detection |
+| Blade | `resources/views/` | Layouts, components, sections, inheritance |
+| Livewire | `app/Livewire/` | Components, properties, events, computed values |
+| Mail | `app/Mail/` | Subjects, markdown templates, views, attachments |
+| Enums | `app/Enums/` | Cases, backed values, usage |
+| Traits | `app/Traits/`, `app/Concerns/` | Definitions, usage map |
+| Helpers | `app/Helpers/` | Global functions, autoload files |
+| Middleware | `app/Http/Middleware/` | Registered middleware, aliases, groups |
+| Policies | `app/Policies/` | Model mapping, abilities |
+| Form Requests | `app/Http/Requests/` | Validation rules, authorize(), custom messages |
+| Repositories | `app/Repositories/` | Interfaces, implementations, model references |
+| Storage | `config/filesystems.php` | Disks, upload paths, public symlinks |
+| Queue | `config/queue.php` | Drivers, connections, Horizon detection |
 
 ---
 
