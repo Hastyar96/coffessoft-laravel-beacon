@@ -18,18 +18,46 @@ use Illuminate\Console\Command;
  */
 class BeaconExportCommand extends Command
 {
+    /**
+     * The name and signature of the console command.
+     *
+     * @var string
+     */
     protected $signature = 'beacon:export
         {--format=md : Output format: md or json}
         {--output= : Custom output path (optional)}';
 
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
     protected $description = 'Export project context to file (md or json)';
 
+    /**
+     * @var ContextBuilder
+     */
+    private ContextBuilder $contextBuilder;
+
+    /**
+     * @var MarkdownExporter
+     */
+    private MarkdownExporter $markdownExporter;
+
+    /**
+     * @var JsonExporter
+     */
+    private JsonExporter $jsonExporter;
+
     public function __construct(
-        private readonly ContextBuilder $contextBuilder,
-        private readonly MarkdownExporter $markdownExporter,
-        private readonly JsonExporter $jsonExporter,
+        ContextBuilder $contextBuilder,
+        MarkdownExporter $markdownExporter,
+        JsonExporter $jsonExporter
     ) {
         parent::__construct();
+        $this->contextBuilder = $contextBuilder;
+        $this->markdownExporter = $markdownExporter;
+        $this->jsonExporter = $jsonExporter;
     }
 
     /**
@@ -40,27 +68,25 @@ class BeaconExportCommand extends Command
         $format = $this->option('format');
         $customOutput = $this->option('output');
 
-        $this->components->info('Laravel Beacon — Export');
+        $this->info('Laravel Beacon — Export');
+        $this->line('');
 
         $context = $this->contextBuilder->build();
+
         $outputDir = $customOutput ? dirname($customOutput) : config('beacon.output_directory', 'storage/app/beacon');
         $outputDir = base_path($outputDir);
 
-        $outputPath = match ($format) {
-            'json' => $customOutput ?? $outputDir . '/context.json',
-            default => $customOutput ?? $outputDir . '/context.md',
-        };
+        if ($format === 'json') {
+            $outputPath = $customOutput ?? $outputDir . '/context.json';
+            $this->jsonExporter->export($context, $outputPath);
+        } else {
+            $outputPath = $customOutput ?? $outputDir . '/context.md';
+            $this->markdownExporter->export($context, $outputPath);
+        }
 
-        $this->components->task('Exporting to ' . $format, function () use ($format, $context, $outputPath) {
-            match ($format) {
-                'json' => $this->jsonExporter->export($context, $outputPath),
-                default => $this->markdownExporter->export($context, $outputPath),
-            };
-        });
+        $this->line(' Exported to: ' . $outputPath);
+        $this->info('Context exported successfully.');
 
-        $this->line($outputPath);
-        $this->components->success('Context exported successfully.');
-
-        return self::SUCCESS;
+        return 0;
     }
 }

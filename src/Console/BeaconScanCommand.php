@@ -14,13 +14,29 @@ use Illuminate\Console\Command;
  */
 class BeaconScanCommand extends Command
 {
+    /**
+     * The name and signature of the console command.
+     *
+     * @var string
+     */
     protected $signature = 'beacon:scan';
+
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
     protected $description = 'Scan the Laravel project and analyze its structure';
 
-    public function __construct(
-        private readonly ContextBuilder $contextBuilder,
-    ) {
+    /**
+     * @var ContextBuilder
+     */
+    private ContextBuilder $contextBuilder;
+
+    public function __construct(ContextBuilder $contextBuilder)
+    {
         parent::__construct();
+        $this->contextBuilder = $contextBuilder;
     }
 
     /**
@@ -28,18 +44,20 @@ class BeaconScanCommand extends Command
      */
     public function handle(): int
     {
-        $this->components->info('Laravel Beacon — Scan');
+        $this->info('Laravel Beacon — Scan');
+        $this->line('');
 
         $context = $this->contextBuilder->build();
 
-        $this->components->twoColumnDetail('Models', (string) $context->get('models.count', 0));
-        $this->components->twoColumnDetail('Controllers', (string) $context->get('controllers.count', 0));
-        $this->components->twoColumnDetail('Routes', (string) $context->get('routes.count', 0));
-        $this->components->twoColumnDetail('Migrations', (string) $context->get('migrations.count', 0));
-        $this->components->twoColumnDetail('Modules', (string) $context->get('modules.total_modules', 0));
+        $this->line(' Models:      ' . $context->get('models.count', 0));
+        $this->line(' Controllers: ' . $context->get('controllers.count', 0));
+        $this->line(' Routes:      ' . $context->get('routes.count', 0));
+        $this->line(' Migrations:  ' . $context->get('migrations.count', 0));
+        $this->line(' Modules:     ' . $context->get('modules.total_modules', 0));
+        $this->line('');
 
-        $this->components->success('Scan complete. Run php artisan beacon:export to generate context files.');
+        $this->info('Scan complete. Run php artisan beacon:export to generate context files.');
 
-        return self::SUCCESS;
+        return 0;
     }
 }
