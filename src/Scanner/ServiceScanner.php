@@ -10,16 +10,16 @@ use Coffesoft\LaravelBeacon\Reader\PhpParser;
 /**
  * Enhanced Service Scanner v2.1
  *
- * Detects services in:
+ * Detects services in multiple directories:
  * - app/Services
- * - Modules/*/Services
- * - Domain/*/Services
+ * - Modules module services
+ * - Domain services
  * - Actions
  * - Use Cases
  * - Application Services
  *
- * Extracts: dependencies, models, repositories, jobs, events, notifications,
- * public methods, responsibilities.
+ * Extracts dependencies, models, repositories, jobs, events,
+ * notifications, public methods, and responsibilities.
  */
 class ServiceScanner
 {
@@ -50,17 +50,18 @@ class ServiceScanner
                 $methods = $parsed['methods'] ?: [];
                 $methodNames = array_map(fn($m) => $m['name'], $methods);
                 $deps = [];
+
                 foreach ($methods as $m) {
                     if ($m['name'] === '__construct') {
                         $deps = $m['params'];
                         break;
                     }
                 }
+
                 if (empty($deps)) {
                     $deps = $this->reader->extractConstructorParams($contents);
                 }
 
-                // Detect responsibilities from method names
                 $responsibilities = $this->detectResponsibilities($methodNames);
                 $type = $this->detectServiceType($path);
 
@@ -101,21 +102,13 @@ class ServiceScanner
     {
         $paths = [];
 
-        // Standard app/Services
         $paths[] = app_path('Services');
-
-        // Actions
         $paths[] = app_path('Actions');
-
-        // Use Cases
         $paths[] = app_path('UseCases');
         $paths[] = app_path('Use Cases');
-
-        // Application Services
         $paths[] = app_path('Application/Services');
         $paths[] = app_path('App/Application/Services');
 
-        // Domain services
         $domainPath = app_path('../domain');
         if (is_dir($domainPath)) {
             $iterator = new \DirectoryIterator($domainPath);
@@ -127,7 +120,6 @@ class ServiceScanner
             }
         }
 
-        // Modules
         $modulesPath = app_path('../Modules');
         if (is_dir($modulesPath)) {
             $iterator = new \DirectoryIterator($modulesPath);
@@ -139,7 +131,6 @@ class ServiceScanner
             }
         }
 
-        // app-modules (nwidart style)
         $modulesPath = base_path('Modules');
         if (is_dir($modulesPath)) {
             $iterator = new \DirectoryIterator($modulesPath);
@@ -172,7 +163,6 @@ class ServiceScanner
         $relative = ltrim($relative, '/');
         $parts = explode('/', $relative);
 
-        // Build namespace from path
         $ns = [];
         foreach ($parts as $part) {
             if (in_array($part, ['app', 'src', 'Modules', 'domain'])) {
