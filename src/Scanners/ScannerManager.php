@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Coffessoft\LaravelBeacon\Scanners;
+namespace Coffesoft\LaravelBeacon\Scanners;
 
-use Coffessoft\LaravelBeacon\Context\Context;
-use Coffessoft\LaravelBeacon\Contracts\Scanner;
+use Coffesoft\LaravelBeacon\Context\Context;
+use Coffesoft\LaravelBeacon\Contracts\Scanner;
 
 /**
  * Orchestrates multiple scanners and merges their results into a Context.

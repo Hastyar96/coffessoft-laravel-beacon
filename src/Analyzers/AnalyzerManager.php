@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Coffessoft\LaravelBeacon\Analyzers;
+namespace Coffesoft\LaravelBeacon\Analyzers;
 
-use Coffessoft\LaravelBeacon\Context\Context;
-use Coffessoft\LaravelBeacon\Contracts\Analyzer;
+use Coffesoft\LaravelBeacon\Context\Context;
+use Coffesoft\LaravelBeacon\Contracts\Analyzer;
 
 /**
  * Orchestrates multiple analyzers to enrich a Context object.

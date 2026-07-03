@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace Coffessoft\LaravelBeacon\Commands;
+namespace Coffesoft\LaravelBeacon\Commands;
 
-use Coffessoft\LaravelBeacon\Analyzers\AnalyzerManager;
-use Coffessoft\LaravelBeacon\Analyzers\EnvironmentAnalyzer;
-use Coffessoft\LaravelBeacon\Context\ContextEngine;
-use Coffessoft\LaravelBeacon\Exporters\ExporterManager;
-use Coffessoft\LaravelBeacon\Exporters\MarkdownExporter;
-use Coffessoft\LaravelBeacon\Scanners\ComposerScanner;
-use Coffessoft\LaravelBeacon\Scanners\ControllerScanner;
-use Coffessoft\LaravelBeacon\Scanners\FrameworkScanner;
-use Coffessoft\LaravelBeacon\Scanners\LaravelScanner;
-use Coffessoft\LaravelBeacon\Scanners\MigrationScanner;
-use Coffessoft\LaravelBeacon\Scanners\ModelScanner;
-use Coffessoft\LaravelBeacon\Scanners\RouteScanner;
-use Coffessoft\LaravelBeacon\Scanners\ScannerManager;
+use Coffesoft\LaravelBeacon\Analyzers\AnalyzerManager;
+use Coffesoft\LaravelBeacon\Analyzers\EnvironmentAnalyzer;
+use Coffesoft\LaravelBeacon\Context\ContextEngine;
+use Coffesoft\LaravelBeacon\Exporters\ExporterManager;
+use Coffesoft\LaravelBeacon\Exporters\MarkdownExporter;
+use Coffesoft\LaravelBeacon\Scanners\ComposerScanner;
+use Coffesoft\LaravelBeacon\Scanners\ControllerScanner;
+use Coffesoft\LaravelBeacon\Scanners\FrameworkScanner;
+use Coffesoft\LaravelBeacon\Scanners\LaravelScanner;
+use Coffesoft\LaravelBeacon\Scanners\MigrationScanner;
+use Coffesoft\LaravelBeacon\Scanners\ModelScanner;
+use Coffesoft\LaravelBeacon\Scanners\RouteScanner;
+use Coffesoft\LaravelBeacon\Scanners\ScannerManager;
 use Illuminate\Console\Command;
 
 /**

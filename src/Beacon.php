@@ -1,6 +1,6 @@
 <?php
 
-namespace Coffessoft\LaravelBeacon;
+namespace Coffesoft\LaravelBeacon;
 
 class Beacon
 {

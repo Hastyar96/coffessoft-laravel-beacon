@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Coffessoft\LaravelBeacon\Contracts;
+namespace Coffesoft\LaravelBeacon\Contracts;
 
 /**
  * Contract for scanning Laravel project information.

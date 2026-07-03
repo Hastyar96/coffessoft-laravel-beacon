@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Coffessoft\LaravelBeacon\Scanners;
+namespace Coffesoft\LaravelBeacon\Scanners;
 
-use Coffessoft\LaravelBeacon\Contracts\Scanner;
+
+use Coffesoft\LaravelBeacon\Contracts\Scanner;
 use Illuminate\Support\Facades\File;
 use Symfony\Component\Finder\SplFileInfo;
 

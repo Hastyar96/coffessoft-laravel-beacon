@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Coffessoft\LaravelBeacon\Exporters;
+namespace Coffesoft\LaravelBeacon\Exporters;
 
-use Coffessoft\LaravelBeacon\Context\Context;
-use Coffessoft\LaravelBeacon\Contracts\Exporter;
+use Coffesoft\LaravelBeacon\Context\Context;
+use Coffesoft\LaravelBeacon\Contracts\Exporter;
 
 /**
  * Orchestrates multiple exporters.

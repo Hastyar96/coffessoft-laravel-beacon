@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Coffessoft\LaravelBeacon\Contracts;
+namespace Coffesoft\LaravelBeacon\Contracts;
 
-use Coffessoft\LaravelBeacon\Context\Context;
+use Coffesoft\LaravelBeacon\Context\Context;
 
 /**
  * Contract for analyzing scanned context data.

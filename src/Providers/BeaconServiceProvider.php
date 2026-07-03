@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Coffessoft\LaravelBeacon\Providers;
+namespace Coffesoft\LaravelBeacon\Providers;
 
-use Coffessoft\LaravelBeacon\Commands\ContextCommand;
+use Coffesoft\LaravelBeacon\Commands\ContextCommand;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 

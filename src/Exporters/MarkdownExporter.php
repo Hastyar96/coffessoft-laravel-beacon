@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Coffessoft\LaravelBeacon\Exporters;
+namespace Coffesoft\LaravelBeacon\Exporters;
 
-use Coffessoft\LaravelBeacon\Context\Context;
-use Coffessoft\LaravelBeacon\Contracts\Exporter;
+use Coffesoft\LaravelBeacon\Context\Context;
+use Coffesoft\LaravelBeacon\Contracts\Exporter;
 use Illuminate\Support\Facades\File;
 
 /**
@@ -122,7 +122,7 @@ class MarkdownExporter implements Exporter
 
         foreach ($items as $item) {
             $row = array_map(function (string $col) use ($item): string {
-                return $item[$col] ?? '';
+                return $item[lcfirst($col)] ?? $item[$col] ?? '';
             }, $columns);
 
             $lines[] = '| ' . implode(' | ', $row) . ' |';

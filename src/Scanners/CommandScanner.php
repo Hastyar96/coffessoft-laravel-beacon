@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Coffessoft\LaravelBeacon\Scanners;
+namespace Coffesoft\LaravelBeacon\Scanners;
 
-use Coffessoft\LaravelBeacon\Contracts\Scanner;
+use Coffesoft\LaravelBeacon\Contracts\Scanner;
 
 /**
  * Scanner stub for Artisan_commands.

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Coffessoft\LaravelBeacon\Context;
+namespace Coffesoft\LaravelBeacon\Context;
 
-use Coffessoft\LaravelBeacon\Analyzers\AnalyzerManager;
-use Coffessoft\LaravelBeacon\Exporters\ExporterManager;
-use Coffessoft\LaravelBeacon\Scanners\ScannerManager;
+use Coffesoft\LaravelBeacon\Analyzers\AnalyzerManager;
+use Coffesoft\LaravelBeacon\Exporters\ExporterManager;
+use Coffesoft\LaravelBeacon\Scanners\ScannerManager;
 
 /**
  * Core engine that orchestrates context generation.
