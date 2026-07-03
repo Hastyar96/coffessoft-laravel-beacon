@@ -7,23 +7,22 @@ namespace Coffesoft\LaravelBeacon\Exporter;
 use Coffesoft\LaravelBeacon\Context\Context;
 
 /**
- * Exports context data to Markdown format for AI consumption.
- * Generates a comprehensive project overview that can be used
- * by any AI assistant as context.
+ * v2.1 MarkdownExporter — Generates all MD and text output files.
+ * Handles: context.md, ai-context.md, ai-summary.md, developer-guide.md,
+ * prompts.md, architecture-report.md, project-graph.md, ai-index.md
  */
 class MarkdownExporter
 {
-    /**
-     * Export the context to a Markdown file.
-     */
     public function export(Context $context, string $path): void
     {
         $data = $context->all();
         $filename = basename($path);
 
         $markdown = match (true) {
+            str_contains($filename, 'ai-summary') || str_contains($filename, 'ai_summary') => $this->buildAiSummary($data),
             str_contains($filename, 'ai-context') || str_contains($filename, 'ai_context') => $this->buildAiContext($data),
             str_contains($filename, 'developer-guide') || str_contains($filename, 'developer_guide') => $this->buildDeveloperGuide($data),
+            str_contains($filename, 'architecture-report') || str_contains($filename, 'architecture_report') => $this->buildArchitectureReport($data),
             str_contains($filename, 'prompts') && !str_contains($filename, 'prompt-pack') => $this->buildPrompts($data),
             str_contains($filename, 'context') || str_contains($filename, '.md') => $this->buildContextMarkdown($data),
             str_contains($filename, 'project-graph') => $this->buildProjectGraphMarkdown($data),
@@ -35,7 +34,7 @@ class MarkdownExporter
     }
 
     /**
-     * Build the comprehensive context.md file.
+     * Build the comprehensive context.md file (backward compatible).
      */
     private function buildContextMarkdown(array $data): string
     {
@@ -44,6 +43,7 @@ class MarkdownExporter
         $md[] = "# Laravel Beacon — AI Project Intelligence";
         $md[] = "";
         $md[] = "> Generated for AI-assisted development.";
+        $md[] = "> **v2.1** — Enhanced with AI summaries, navigation, and workflow detection.";
         $md[] = "> Total estimated tokens saved by reading this file instead of source code: **thousands**.";
         $md[] = "";
         $md[] = "---";
@@ -58,11 +58,15 @@ class MarkdownExporter
         $md[] = "| **Framework** | Laravel " . ($data['framework']['version'] ?? '?') . " |";
         $md[] = "| **PHP** | " . ($data['framework']['php_version'] ?? '?') . " |";
         $md[] = "| **Generated** | " . ($data['generated_at'] ?? '?') . " |";
-        $md[] = "| **Beacon Version** | " . ($data['beacon_version'] ?? '2.0.0') . " |";
+        $md[] = "| **Beacon Version** | " . ($data['beacon_version'] ?? '2.1.0') . " |";
+        $complexityLevel = $data['enhanced_statistics']['complexity']['level'] ?? '?';
+        $complexityScore = $data['enhanced_statistics']['complexity']['score'] ?? '?';
+        $md[] = "| **Complexity** | {$complexityLevel} (score: {$complexityScore}) |";
         $md[] = "";
 
         // Summary counts
         $stats = $data['statistics'] ?? [];
+        $enhanced = $data['enhanced_statistics'] ?? [];
         $md[] = "## 📊 Quick Statistics";
         $md[] = "";
         $md[] = "| Component | Count |";
@@ -83,50 +87,68 @@ class MarkdownExporter
         $md[] = "| **Packages** | " . ($stats['packages'] ?? 0) . " |";
         $md[] = "| **Database Tables** | " . ($stats['database_tables'] ?? 0) . " |";
         $md[] = "| **Routes** | " . ($data['routes']['count'] ?? 0) . " |";
+        $md[] = "| **Features** | " . ($data['features']['count'] ?? 0) . " |";
+        $md[] = "| **Workflows** | " . ($data['workflows']['count'] ?? 0) . " |";
         $md[] = "";
-        $md[] = "Average controller methods: **{$stats['average_controller_methods']}**";
+        $medianMethods = $enhanced['controllers']['median_methods'] ?? '?';
+        $md[] = "Average controller methods: **{$stats['average_controller_methods']}** (median: **{$medianMethods}**)";
         $md[] = "";
         $md[] = "Average model methods: **{$stats['average_model_methods']}**";
         $md[] = "";
+        $mostConnected = $enhanced['models']['most_connected'] ?? '?';
+        $md[] = "Most connected model: **{$mostConnected}**";
+        $md[] = "";
+        $md[] = "**See also:** `ai-context.md` for LLM-optimized overview, `ai-summary.md` for class summaries,";
+        $md[] = "`architecture-report.md` for architecture analysis, `developer-guide.md` for onboarding.";
+        $md[] = "";
 
-        // Architecture
-        $arch = $data['architecture'] ?? [];
-        if (!empty($arch)) {
-            $md[] = "---";
-            $md[] = "## 🏗️ Architecture";
-            $md[] = "";
-            $md[] = "**Primary:** " . ($arch['primary'] ?? 'MVC');
-            $md[] = "";
-            if (!empty($arch['secondary'])) {
-                $md[] = "**Secondary:** " . implode(', ', $arch['secondary']);
-                $md[] = "";
-                $md[] = "**Hybrid:** " . ($arch['is_hybrid'] ? 'Yes' : 'No');
-                $md[] = "";
-            }
-            if (!empty($arch['explanations'])) {
-                $md[] = "### Detection Reasoning";
-                $md[] = "";
-                foreach ($arch['explanations'] as $type => $reason) {
-                    $md[] = "- **{$type}**: {$reason}";
-                }
-                $md[] = "";
-            }
-        }
+        // Architecture (continued)
+        $this->appendArchitecture($md, $data);
+        $this->appendModelsSection($md, $data);
+        $this->appendControllersSection($md, $data);
+        $this->appendRoutesSection($md, $data);
+        $this->appendBusinessRulesSection($md, $data);
+        $this->appendSecuritySection($md, $data);
+        $this->appendPerformanceSection($md, $data);
+        $this->appendPackagesSection($md, $data);
+        $this->appendAISummariesSection($md, $data);
+        $this->appendFolderTreeSection($md, $data);
 
-        // Models
         $md[] = "---";
-        $md[] = "## 📦 Models";
+        $md[] = "*Generated by Laravel Beacon v2.1 — AI Project Intelligence Engine*";
+        $md[] = "*Run `php artisan beacon:scan` to regenerate.*";
+        $md[] = "";
+
+        return implode("\n", $md);
+    }
+
+    private function appendArchitecture(array &$md, array $data): void
+    {
+        $arch = $data['architecture'] ?? [];
+        if (empty($arch)) return;
+        $md[] = "---";
+        $md[] = "## 🏗️ Architecture [confidence: 85]";
+        $md[] = "";
+        $md[] = "**Primary:** " . ($arch['primary'] ?? 'MVC');
+        if (!empty($arch['secondary'])) {
+            $md[] = "**Secondary:** " . implode(', ', $arch['secondary']);
+            $md[] = "**Hybrid:** " . ($arch['is_hybrid'] ? 'Yes' : 'No');
+        }
+        foreach ($arch['explanations'] ?? [] as $type => $reason) {
+            $md[] = "- **{$type}**: {$reason}";
+        }
+        $md[] = "";
+    }
+
+    private function appendModelsSection(array &$md, array $data): void
+    {
+        $md[] = "---";
+        $md[] = "## 📦 Models [confidence: 90]";
         $md[] = "";
         foreach ($data['models']['items'] ?? [] as $model) {
             $md[] = "### {$model['name']}";
-            $md[] = "";
-            $md[] = "- **Namespace:** `{$model['namespace']}`";
             $md[] = "- **File:** `{$model['path']}`";
-            if (!empty($model['fillable'])) $md[] = "- **Fillable:** `" . implode('`, `', $model['fillable']) . "`";
-            if (!empty($model['casts'])) {
-                $castStr = implode(', ', array_map(fn($k, $v) => "{$k} => {$v}", array_keys($model['casts']), $model['casts']));
-                $md[] = "- **Casts:** {$castStr}";
-            }
+            if (!empty($model['fillable'])) $md[] = "- **Attributes:** `" . implode('`, `', $model['fillable']) . "`";
             if (!empty($model['traits'])) $md[] = "- **Traits:** " . implode(', ', $model['traits']);
             if (!empty($model['relations'])) {
                 $relStr = [];
@@ -135,93 +157,95 @@ class MarkdownExporter
                 }
                 $md[] = "- **Relations:** " . implode(', ', $relStr);
             }
-            if (!empty($model['scopes'])) $md[] = "- **Scopes:** " . implode(', ', $model['scopes']);
-            if (!empty($model['accessors'])) $md[] = "- **Accessors:** " . implode(', ', $model['accessors']);
             $md[] = "";
         }
+    }
 
-        // Controllers
+    private function appendControllersSection(array &$md, array $data): void
+    {
         $md[] = "---";
-        $md[] = "## 🎮 Controllers";
+        $md[] = "## 🎮 Controllers [confidence: 90]";
         $md[] = "";
         foreach ($data['controllers']['items'] ?? [] as $ctrl) {
             $md[] = "### {$ctrl['name']}";
-            $md[] = "";
-            $md[] = "- **Group:** `{$ctrl['group']}`";
-            $md[] = "- **CRUD:** " . ($ctrl['is_crud'] ? 'Yes' : 'No');
+            $md[] = "- **Group:** `{$ctrl['group']}` | **CRUD:** " . ($ctrl['is_crud'] ? 'Yes' : 'No');
             $md[] = "- **Methods:** " . implode(', ', $ctrl['methods'] ?? []);
             if (!empty($ctrl['middleware'])) $md[] = "- **Middleware:** " . implode(', ', $ctrl['middleware']);
             $md[] = "";
         }
+    }
 
-        // Routes
+    private function appendRoutesSection(array &$md, array $data): void
+    {
         $md[] = "---";
-        $md[] = "## 🛣️ Routes ({$data['routes']['count']} total)";
+        $md[] = "## 🛣️ Routes (" . ($data['routes']['count'] ?? 0) . " total) [confidence: 95]";
         $md[] = "";
         $routeGroups = $data['route_intelligence']['groups'] ?? [];
         foreach ($routeGroups as $module => $group) {
-            $md[] = "### {$module} ({$group['total']} routes)";
-            $md[] = "";
-            if (!empty($group['middleware'])) $md[] = "- **Middleware:** " . implode(', ', $group['middleware']);
-            if (!empty($group['controllers'])) $md[] = "- **Controllers:** " . implode(', ', $group['controllers']);
-            $md[] = "";
-            foreach ($group['routes'] as $route) {
+            $md[] = "### " . ucfirst($module) . " ({$group['total']} routes)";
+            if (!empty($group['middleware'])) $md[] = "- Middleware: " . implode(', ', $group['middleware']);
+            if (!empty($group['controllers'])) $md[] = "- Controllers: " . implode(', ', $group['controllers']);
+            foreach (array_slice($group['routes'] ?? [], 0, 10) as $route) {
                 $methods = implode(', ', array_diff($route['methods'] ?? [], ['HEAD']));
                 $name = $route['name'] ? " (`{$route['name']}`)" : '';
                 $md[] = "- `{$methods}` `{$route['uri']}`{$name}";
             }
+            if (count($group['routes'] ?? []) > 10) {
+                $md[] = "- ... and " . (count($group['routes']) - 10) . " more routes";
+            }
             $md[] = "";
         }
+    }
 
-        // Business Rules
+    private function appendBusinessRulesSection(array &$md, array $data): void
+    {
         $rules = $data['business_rules'] ?? [];
-        if (!empty($rules['items'])) {
-            $md[] = "---";
-            $md[] = "## 📜 Business Rules";
-            $md[] = "";
-            $md[] = "> Detected from validation, model events, database constraints, and accessors.";
-            $md[] = "";
-            foreach ($rules['items'] as $rule) {
-                $md[] = "- **{$rule['type']}**: {$rule['rule']}";
-                $md[] = "  - Source: `{$rule['source']}`";
-            }
-            $md[] = "";
-        }
-
-        // Security
-        $security = $data['security'] ?? [];
-        if (!empty($security['issues'])) {
-            $md[] = "---";
-            $md[] = "## 🔒 Security Analysis";
-            $md[] = "";
-            foreach ($security['issues'] as $issue) {
-                $severity = $issue['severity'];
-                $icon = match ($severity) {
-                    'critical' => '🔴',
-                    'high' => '🟠',
-                    'warning' => '🟡',
-                    default => '🔵',
-                };
-                $md[] = "- {$icon} **{$severity}**: {$issue['message']}";
-            }
-            $md[] = "";
-        }
-
-        // Performance
-        $perf = $data['performance'] ?? [];
-        if (!empty($perf['issues'])) {
-            $md[] = "---";
-            $md[] = "## ⚡ Performance Analysis";
-            $md[] = "";
-            foreach ($perf['issues'] as $issue) {
-                $md[] = "- **{$issue['type']}**: {$issue['message']}";
-            }
-            $md[] = "";
-        }
-
-        // Packages
+        if (empty($rules['items'])) return;
         $md[] = "---";
-        $md[] = "## 📦 Packages";
+        $md[] = "## 📜 Business Rules [confidence: 80]";
+        $md[] = "";
+        foreach (array_slice($rules['items'], 0, 20) as $rule) {
+            $md[] = "- **{$rule['type']}**: {$rule['rule']}";
+        }
+        if (count($rules['items']) > 20) {
+            $md[] = "- ... and " . (count($rules['items']) - 20) . " more rules";
+        }
+        $md[] = "";
+    }
+
+    private function appendSecuritySection(array &$md, array $data): void
+    {
+        $security = $data['security'] ?? [];
+        if (empty($security['issues'])) return;
+        $md[] = "---";
+        $md[] = "## 🔒 Security Analysis [confidence: 85]";
+        $md[] = "";
+        foreach ($security['issues'] as $issue) {
+            $icon = match ($issue['severity']) {
+                'critical' => '🔴', 'high' => '🟠', 'warning' => '🟡', default => '🔵',
+            };
+            $md[] = "- {$icon} **{$issue['severity']}**: {$issue['message']}";
+        }
+        $md[] = "";
+    }
+
+    private function appendPerformanceSection(array &$md, array $data): void
+    {
+        $perf = $data['performance'] ?? [];
+        if (empty($perf['issues'])) return;
+        $md[] = "---";
+        $md[] = "## ⚡ Performance Analysis [confidence: 75]";
+        $md[] = "";
+        foreach ($perf['issues'] as $issue) {
+            $md[] = "- **{$issue['type']}**: {$issue['message']}";
+        }
+        $md[] = "";
+    }
+
+    private function appendPackagesSection(array &$md, array $data): void
+    {
+        $md[] = "---";
+        $md[] = "## 📦 Packages [confidence: 95]";
         $md[] = "";
         $md[] = "| Package | Version | Category |";
         $md[] = "|---------|---------|----------|";
@@ -229,24 +253,28 @@ class MarkdownExporter
             $md[] = "| {$pkg['name']} | {$pkg['version']} | {$pkg['category']} |";
         }
         $md[] = "";
+    }
 
-        // AI Summaries
+    private function appendAISummariesSection(array &$md, array $data): void
+    {
         $summaries = $data['ai_summaries'] ?? [];
-        if (!empty($summaries['items'])) {
-            $md[] = "---";
-            $md[] = "## 🤖 AI Class Summaries";
-            $md[] = "";
-            foreach ($summaries['items'] as $summary) {
-                $md[] = "### {$summary['class']} ({$summary['type']})";
-                $md[] = "";
-                $md[] = "```";
-                $md[] = $summary['summary'];
-                $md[] = "```";
-                $md[] = "";
-            }
+        if (empty($summaries['items'])) return;
+        $md[] = "---";
+        $md[] = "## 🤖 AI Class Summaries [confidence: 85]";
+        $md[] = "";
+        $md[] = "> Detailed per-class summaries available in `ai-summary.md`.";
+        $md[] = "";
+        foreach (array_slice($summaries['items'], 0, 10) as $summary) {
+            $md[] = "- **{$summary['class']}** ({$summary['type']})";
         }
+        if (count($summaries['items']) > 10) {
+            $md[] = "- ... and " . (count($summaries['items']) - 10) . " more classes";
+        }
+        $md[] = "";
+    }
 
-        // Folder Tree
+    private function appendFolderTreeSection(array &$md, array $data): void
+    {
         $tree = $data['folder_tree'] ?? [];
         $md[] = "---";
         $md[] = "## 📁 Project Structure";
@@ -255,192 +283,83 @@ class MarkdownExporter
         $md[] = $this->renderTree($tree['root'] ?? [], 0);
         $md[] = "```";
         $md[] = "";
-
-        // Footer
-        $md[] = "---";
-        $md[] = "*Generated by Laravel Beacon v2 — AI Project Intelligence Engine*";
-        $md[] = "*Run `php artisan beacon:scan` to regenerate.*";
-        $md[] = "";
-
-        return implode("\n", $md);
     }
 
-    /**
-     * Build project graph markdown.
-     */
+    // AI Summary helper
+    private function buildAiSummary(array $data): string
+    {
+        return $data['ai_summary']['content'] ?? '# AI Summary' . "\n\n" . 'Run beacon:scan to generate.';
+    }
+
+    // AI Context helper
+    private function buildAiContext(array $data): string
+    {
+        return $data['ai_context']['content'] ?? '# AI Context' . "\n\n" . 'See ai-summary.md for class summaries.';
+    }
+
+    // Developer Guide helper
+    private function buildDeveloperGuide(array $data): string
+    {
+        return $data['developer_guide']['content'] ?? '# Developer Guide' . "\n\n" . 'Run beacon:scan to generate.';
+    }
+
+    // Architecture Report helper
+    private function buildArchitectureReport(array $data): string
+    {
+        return $data['architecture_report']['content'] ?? '# Architecture Report' . "\n\n" . 'Run beacon:scan to generate.';
+    }
+
+    // Prompts helper
+    private function buildPrompts(array $data): string
+    {
+        return $data['ai_prompts']['content'] ?? '# AI Prompts' . "\n\n" . 'See ai-context.md first.';
+    }
+
     private function buildProjectGraphMarkdown(array $data): string
     {
-        $md = [];
-        $md[] = "# Project Relationship Graph";
-        $md[] = "";
-
+        $md = ["# Project Relationship Graph", ""];
         $graph = $data['project_graph'] ?? [];
-
         $md[] = "## Nodes (" . count($graph['nodes'] ?? []) . ")";
-        $md[] = "";
         foreach ($graph['nodes'] ?? [] as $node) {
             $md[] = "- **{$node['name']}** ({$node['type']})";
         }
         $md[] = "";
-
         $md[] = "## Edges (" . count($graph['edges'] ?? []) . ")";
-        $md[] = "";
         foreach ($graph['edges'] ?? [] as $edge) {
-            $from = $edge['from'] ?? '';
-            $to = $edge['to'] ?? '';
-            $label = $edge['label'] ?? '';
-            $md[] = "- `{$from}` --{$label}--> `{$to}`";
+            $md[] = "- `{$edge['from']}` --{$edge['label']}--> `{$edge['to']}`";
         }
-        $md[] = "";
-
         return implode("\n", $md);
     }
 
-    /**
-     * Build AI Index markdown.
-     */
     private function buildAIIndexMarkdown(array $data): string
     {
-        $md = [];
-        $md[] = "# AI Index — Quick Reference";
-        $md[] = "";
-        $md[] = "This file contains the most important project metadata for AI assistants.";
-        $md[] = "";
-
+        $md = ["# AI Index — Quick Reference", ""];
         $md[] = "## Models";
-        $md[] = "";
         foreach ($data['models']['items'] ?? [] as $model) {
             $md[] = "- `{$model['name']}`";
-            if (!empty($model['fillable'])) $md[] = "   - Fillable: " . implode(', ', $model['fillable']);
         }
         $md[] = "";
-
         $md[] = "## Key Classes";
-        $md[] = "";
         foreach ($data['ai_summaries']['items'] ?? [] as $summary) {
             if (in_array($summary['type'], ['service', 'repository', 'policy'])) {
                 $md[] = "- **{$summary['class']}** ({$summary['type']})";
             }
         }
         $md[] = "";
-
         $md[] = "## Business Rules";
-        $md[] = "";
         foreach ($data['business_rules']['items'] ?? [] as $rule) {
             $md[] = "- {$rule['rule']}";
         }
-        $md[] = "";
-
         return implode("\n", $md);
     }
 
-    /**
-     * Build AI context markdown (from AiContextCompressor).
-     */
-    private function buildAiContext(array $data): string
-    {
-        $content = $data['ai_context']['content'] ?? '';
-        if (!empty($content)) {
-            return $content;
-        }
-
-        // Fallback: build from component data
-        $lines = [];
-        $lines[] = '# AI Context — Laravel Project Intelligence';
-        $lines[] = '';
-        $lines[] = '> Optimized for AI assistants.';
-        $lines[] = '> This file provides full project understanding.';
-        $lines[] = '';
-        $lines[] = '## Project';
-        $lines[] = '';
-        $lines[] = '- Name: ' . basename(base_path());
-        $lines[] = '- Framework: Laravel ' . ($data['framework']['version'] ?? '?');
-        $lines[] = '- PHP: ' . ($data['framework']['php_version'] ?? '?');
-        $lines[] = '';
-        $lines[] = '## Architecture';
-        $lines[] = '';
-        $lines[] = ($data['architecture']['primary'] ?? 'MVC');
-        if (!empty($data['architecture']['secondary'])) {
-            $lines[] = 'Patterns: ' . implode(', ', $data['architecture']['secondary']);
-        }
-        $lines[] = '';
-        $lines[] = '## Quick Stats';
-        $lines[] = '';
-        $lines[] = '- Models: ' . ($data['models']['count'] ?? 0);
-        $lines[] = '- Controllers: ' . ($data['controllers']['count'] ?? 0);
-        $lines[] = '- Routes: ' . ($data['routes']['count'] ?? 0);
-        $lines[] = '- Services: ' . ($data['services']['count'] ?? 0);
-        $lines[] = '- Packages: ' . ($data['packages']['count'] ?? 0);
-        $lines[] = '';
-        $lines[] = '*See developer-guide.md and prompts.md for more.*';
-
-        return implode("\n", $lines);
-    }
-
-    /**
-     * Build developer guide markdown (from DeveloperOnboarding).
-     */
-    private function buildDeveloperGuide(array $data): string
-    {
-        $content = $data['developer_guide']['content'] ?? '';
-        if (!empty($content)) {
-            return $content;
-        }
-
-        $lines = [];
-        $lines[] = '# Developer Onboarding Guide';
-        $lines[] = '';
-        $lines[] = '> Generated by Laravel Beacon v2.1';
-        $lines[] = '';
-        $lines[] = '## Quick Start';
-        $lines[] = '';
-        $lines[] = '1. Read ai-context.md for project overview';
-        $lines[] = '2. Start with routes/web.php';
-        $lines[] = '3. Trace a request through: Route → Controller → Service → Model';
-        $lines[] = '4. Review features.json for feature map';
-        $lines[] = '5. Review workflows.json for business flows';
-        $lines[] = '';
-        $lines[] = '## Folder Structure';
-        $lines[] = '';
-        $lines[] = '- `app/Models` - Eloquent models';
-        $lines[] = '- `app/Http/Controllers` - HTTP handlers';
-        $lines[] = '- `app/Services` - Business logic';
-        $lines[] = '- `app/Repositories` - Data access layer';
-        $lines[] = '- `app/Http/Requests` - Form validation';
-        $lines[] = '- `app/Policies` - Authorization';
-        $lines[] = '- `app/Jobs` - Queue tasks';
-        $lines[] = '- `app/Events` - Event classes';
-        $lines[] = '- `app/Notifications` - Notification channels';
-        $lines[] = '- `routes/` - Route definitions';
-        $lines[] = '- `resources/views/` - Blade templates';
-        $lines[] = '- `database/migrations/` - Schema changes';
-
-        return implode("\n", $lines);
-    }
-
-    /**
-     * Build prompts markdown (from AiPromptPack).
-     */
-    private function buildPrompts(array $data): string
-    {
-        return $data['ai_prompts']['content'] ?? '# AI Prompts' . "\n\n" . 'See ai-context.md for project understanding first.';
-    }
-
-    /**
-     * Recursively render folder tree.
-     */
     private function renderTree(array $node, int $depth): string
     {
         $output = '';
         $indent = str_repeat('  ', $depth);
-
-        if ($depth === 0) {
-            $output .= "{$node['name']}/\n";
-        }
-
+        if ($depth === 0) $output .= "{$node['name']}/\n";
         foreach ($node['children'] ?? [] as $child) {
             if (isset($child['exists']) && !$child['exists']) continue;
-
             if (!empty($child['children'])) {
                 $output .= "{$indent}├── {$child['name']}/\n";
                 $output .= $this->renderTree($child, $depth + 1);
@@ -448,7 +367,6 @@ class MarkdownExporter
                 $output .= "{$indent}├── {$child['name']}\n";
             }
         }
-
         return $output;
     }
 }
