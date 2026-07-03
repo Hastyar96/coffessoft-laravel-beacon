@@ -8,15 +8,21 @@ use Coffesoft\LaravelBeacon\Builder\ContextBuilder;
 use Coffesoft\LaravelBeacon\Cache\ScanCache;
 use Coffesoft\LaravelBeacon\Console\BeaconDiffCommand;
 use Coffesoft\LaravelBeacon\Console\BeaconExportCommand;
+use Coffesoft\LaravelBeacon\Console\BeaconFixPlanCommand;
 use Coffesoft\LaravelBeacon\Console\BeaconReviewCommand;
+use Coffesoft\LaravelBeacon\Console\BeaconRouteHealthCommand;
 use Coffesoft\LaravelBeacon\Console\BeaconScanCommand;
+use Coffesoft\LaravelBeacon\Console\BeaconSuggestFixCommand;
 use Coffesoft\LaravelBeacon\Console\BeaconTaskCommand;
 use Coffesoft\LaravelBeacon\Intelligence\AiContextCompressor;
 use Coffesoft\LaravelBeacon\Intelligence\AiPromptPack;
+use Coffesoft\LaravelBeacon\Intelligence\AiRefactorPlanner;
 use Coffesoft\LaravelBeacon\Intelligence\AISummarizer;
 use Coffesoft\LaravelBeacon\Intelligence\ArchitectureDetector;
 use Coffesoft\LaravelBeacon\Intelligence\ArchitectureKnowledge;
+use Coffesoft\LaravelBeacon\Intelligence\AutoControllerSplitter;
 use Coffesoft\LaravelBeacon\Intelligence\BusinessRuleDetector;
+use Coffesoft\LaravelBeacon\Intelligence\CodeFixEngine;
 use Coffesoft\LaravelBeacon\Intelligence\DatabaseIntelligence;
 use Coffesoft\LaravelBeacon\Intelligence\DependencyGraphGenerator;
 use Coffesoft\LaravelBeacon\Intelligence\DeveloperOnboarding;
@@ -27,10 +33,12 @@ use Coffesoft\LaravelBeacon\Intelligence\FeatureStoriesEngine;
 use Coffesoft\LaravelBeacon\Intelligence\FolderTreeGenerator;
 use Coffesoft\LaravelBeacon\Intelligence\ImpactMapGenerator;
 use Coffesoft\LaravelBeacon\Intelligence\KnowledgeGraphEngine;
+use Coffesoft\LaravelBeacon\Intelligence\ModelDependencyTracker;
 use Coffesoft\LaravelBeacon\Intelligence\ModuleDetector;
 use Coffesoft\LaravelBeacon\Intelligence\PerformanceAnalyzer;
 use Coffesoft\LaravelBeacon\Intelligence\RelationshipGraph;
 use Coffesoft\LaravelBeacon\Intelligence\ReviewEngine;
+use Coffesoft\LaravelBeacon\Intelligence\RouteHealthEngine;
 use Coffesoft\LaravelBeacon\Intelligence\RouteIntelligence;
 use Coffesoft\LaravelBeacon\Intelligence\SearchIndexEngine;
 use Coffesoft\LaravelBeacon\Intelligence\SecurityAnalyzer;
@@ -136,6 +144,14 @@ class BeaconServiceProvider extends ServiceProvider
         $this->app->singleton(DiffEngine::class);
         $this->app->singleton(ReviewEngine::class);
 
+        // v5.0 AI Copilot intelligence
+        $this->app->singleton(AutoControllerSplitter::class);
+        $this->app->singleton(CodeFixEngine::class);
+        $this->app->singleton(RouteHealthEngine::class);
+        $this->app->singleton(ModelDependencyTracker::class);
+        $this->app->singleton(AiRefactorPlanner::class);
+
+        // Infrastructure
         $this->app->singleton(ScanCache::class);
         $this->app->singleton(ContextBuilder::class);
     }
@@ -144,11 +160,16 @@ class BeaconServiceProvider extends ServiceProvider
     {
         if ($this->app->runningInConsole()) {
             $this->commands([
+                // v1–v4 commands
                 BeaconScanCommand::class,
                 BeaconExportCommand::class,
                 BeaconTaskCommand::class,
                 BeaconDiffCommand::class,
                 BeaconReviewCommand::class,
+                // v5.0 commands
+                BeaconFixPlanCommand::class,
+                BeaconSuggestFixCommand::class,
+                BeaconRouteHealthCommand::class,
             ]);
 
             $this->publishes([

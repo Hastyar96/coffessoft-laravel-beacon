@@ -6,9 +6,10 @@ namespace Coffesoft\LaravelBeacon\Cache;
 
 /**
  * Incremental scan cache for large Laravel projects.
- * Stores file hashes to detect changed files and skip unchanged ones.
  *
- * .cache/beacon/ — stored at project root to avoid cluttering storage.
+ * Stores file hashes in .cache/beacon/manifest.json.
+ * Only re-scans files whose content hash has changed.
+ * On first run, creates baseline silently — no false positives.
  */
 class ScanCache
 {
@@ -16,18 +17,26 @@ class ScanCache
 
     private string $manifestPath;
 
-    /** @var array<string, array<string, string>> */
+    private string $snapshotPath;
+
+    /** @var array<string, string> file_path => md5_hash */
     private array $manifest = [];
+
+    private ?int $previousScanTime = null;
 
     public function __construct()
     {
         $this->cacheDir = base_path('.cache/beacon');
         $this->manifestPath = $this->cacheDir . '/manifest.json';
+        $this->snapshotPath = $this->cacheDir . '/snapshot.json';
         $this->loadManifest();
     }
 
     /**
      * Detect which files have changed since the last scan.
+     *
+     * On first scan, all files are returned as "unchanged" (baseline creation).
+     * Subsequent scans only return truly changed files.
      *
      * @param array<string> $files List of file paths to check
      * @return array{array<string>, array<string>} [changed_files, unchanged_files]
@@ -36,6 +45,7 @@ class ScanCache
     {
         $changed = [];
         $unchanged = [];
+        $isFirstScan = $this->isFirstScan();
 
         foreach ($files as $file) {
             if (!file_exists($file)) {
@@ -45,11 +55,24 @@ class ScanCache
             $hash = $this->hashFile($file);
             $relativePath = $this->relativePath($file);
 
-            if (!isset($this->manifest[$relativePath]) || $this->manifest[$relativePath] !== $hash) {
-                $changed[] = $file;
-            } else {
+            if ($isFirstScan) {
+                // First scan: build baseline, mark everything as unchanged
+                $this->manifest[$relativePath] = $hash;
                 $unchanged[] = $file;
+            } else {
+                if (!isset($this->manifest[$relativePath])) {
+                    $changed[] = $file; // New file
+                } elseif ($this->manifest[$relativePath] !== $hash) {
+                    $changed[] = $file; // Modified file
+                } else {
+                    $unchanged[] = $file; // Unchanged file
+                }
             }
+        }
+
+        if ($isFirstScan) {
+            $this->saveManifest();
+            $this->recordSnapshot();
         }
 
         return [$changed, $unchanged];
@@ -57,8 +80,6 @@ class ScanCache
 
     /**
      * Record file hashes after a scan.
-     *
-     * @param array<string> $files List of file paths that were scanned
      */
     public function recordScan(array $files): void
     {
@@ -69,13 +90,14 @@ class ScanCache
         }
 
         $this->saveManifest();
+        $this->recordSnapshot();
     }
 
     /**
      * Get cached scan results for unchanged files.
      *
      * @param array<string> $files Unchanged files
-     * @return array<string, mixed> Stored scan data for these files
+     * @return array<string, mixed>
      */
     public function getCachedForFiles(array $files): array
     {
@@ -87,7 +109,7 @@ class ScanCache
 
             if (file_exists($cachePath)) {
                 $cached = json_decode(file_get_contents($cachePath), true);
-                if ($cached) {
+                if (is_array($cached)) {
                     $data[] = $cached;
                 }
             }
@@ -111,7 +133,6 @@ class ScanCache
 
         file_put_contents($cacheFile, json_encode($data));
 
-        // Update manifest
         $this->manifest[$relativePath] = $this->hashFile($filePath);
         $this->saveManifest();
     }
@@ -131,7 +152,15 @@ class ScanCache
      */
     public function isFirstScan(): bool
     {
-        return empty($this->manifest);
+        return empty($this->manifest) && !file_exists($this->manifestPath);
+    }
+
+    /**
+     * Get the timestamp of the previous scan.
+     */
+    public function getPreviousScanTime(): ?int
+    {
+        return $this->previousScanTime;
     }
 
     /**
@@ -160,6 +189,8 @@ class ScanCache
             'cache_file_count' => $cacheFiles,
             'cache_size_bytes' => $cacheSize,
             'cache_dir' => $this->cacheDir,
+            'first_scan' => $this->isFirstScan(),
+            'previous_scan' => $this->previousScanTime,
         ];
     }
 
@@ -172,6 +203,7 @@ class ScanCache
             $this->removeDirectory($this->cacheDir);
         }
         $this->manifest = [];
+        $this->previousScanTime = null;
     }
 
     private function loadManifest(): void
@@ -179,7 +211,14 @@ class ScanCache
         if (file_exists($this->manifestPath)) {
             $data = json_decode(file_get_contents($this->manifestPath), true);
             if (is_array($data)) {
-                $this->manifest = $data;
+                // Handle both flat format and versioned format
+                if (isset($data['files'])) {
+                    $this->manifest = $data['files'];
+                    $this->previousScanTime = $data['scanned_at'] ?? null;
+                } else {
+                    $this->manifest = $data;
+                    $this->previousScanTime = $this->loadSnapshotTime();
+                }
             }
         }
     }
@@ -189,7 +228,34 @@ class ScanCache
         if (!is_dir($this->cacheDir)) {
             mkdir($this->cacheDir, 0755, true);
         }
-        file_put_contents($this->manifestPath, json_encode($this->manifest, JSON_PRETTY_PRINT));
+
+        $data = [
+            'version' => '2',
+            'scanned_at' => time(),
+            'files' => $this->manifest,
+        ];
+
+        file_put_contents($this->manifestPath, json_encode($data, JSON_PRETTY_PRINT));
+    }
+
+    private function recordSnapshot(): void
+    {
+        $snapshot = [
+            'scanned_at' => time(),
+            'file_count' => count($this->manifest),
+            'files' => array_keys($this->manifest),
+        ];
+        file_put_contents($this->snapshotPath, json_encode($snapshot, JSON_PRETTY_PRINT));
+        $this->previousScanTime = time();
+    }
+
+    private function loadSnapshotTime(): ?int
+    {
+        if (file_exists($this->snapshotPath)) {
+            $snapshot = json_decode(file_get_contents($this->snapshotPath), true);
+            return $snapshot['scanned_at'] ?? null;
+        }
+        return null;
     }
 
     private function hashFile(string $path): string
