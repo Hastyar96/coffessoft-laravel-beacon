@@ -8,6 +8,13 @@
             "Coffessoft\\LaravelBeacon\\": "src/"
         }
     },
+    "extra": {
+      "laravel": {
+            "providers": [
+                "Coffessoft\\LaravelBeacon\\LaravelBeaconServiceProvider"
+            ]
+        }
+    },
     "authors": [
         {
             "name": "Hastyar",
@@ -15,5 +22,12 @@
         }
     ],
     "minimum-stability": "stable",
-    "require": {}
+    "require": {
+        "illuminate/support": "^13.18",
+        "illuminate/console": "^13.18",
+        "spatie/laravel-package-tools": "^1.93"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^11.1"
+    }
 }
