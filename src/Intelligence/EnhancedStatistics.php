@@ -119,7 +119,7 @@ class EnhancedStatistics
         $mostConnected = null;
         $maxRelations = 0;
         foreach ($items as $m) {
-            $totalRels = array_sum($m['relations'] ?? []);
+            $totalRels = count($m['relations'] ?? []);
             if ($totalRels > $maxRelations) {
                 $maxRelations = $totalRels;
                 $mostConnected = $m['name'];
@@ -130,7 +130,7 @@ class EnhancedStatistics
             'total' => count($items),
             'largest' => array_slice($sorted, 0, 5),
             'most_connected' => $mostConnected,
-            'total_relations_count' => array_sum(array_map(fn($m) => array_sum($m['relations'] ?? []), $items)),
+            'total_relations_count' => count(array_merge(...array_map(fn($m) => $m['relations'] ?? [], $items))),
             'total_scopes' => array_sum(array_map(fn($m) => count($m['scopes'] ?? []), $items)),
             'total_accessors' => array_sum(array_map(fn($m) => count($m['accessors'] ?? []), $items)),
             'total_mutators' => array_sum(array_map(fn($m) => count($m['mutators'] ?? []), $items)),
@@ -192,9 +192,10 @@ class EnhancedStatistics
         $relationTypes = [];
 
         foreach ($models as $m) {
-            foreach ($m['relations'] ?? [] as $type => $count) {
-                $relationTypes[$type] = ($relationTypes[$type] ?? 0) + $count;
-                $totalRelations += $count;
+            foreach ($m['relations'] ?? [] as $rel) {
+                $relType = $rel['type'] ?? 'unknown';
+                $relationTypes[$relType] = ($relationTypes[$relType] ?? 0) + 1;
+                $totalRelations++;
             }
         }
 
@@ -274,7 +275,7 @@ class EnhancedStatistics
     {
         return [
             'public_methods' => $this->sumPublicMethods($data),
-            'total_relations' => array_sum(array_map(fn($m) => array_sum($m['relations'] ?? []), $data['models']['items'] ?? [])),
+            'total_relations' => count(array_merge(...array_map(fn($m) => $m['relations'] ?? [], $data['models']['items'] ?? []))),
             'total_policies' => $data['policies']['count'] ?? 0,
             'total_requests' => $data['form_requests']['count'] ?? 0,
             'total_events' => $data['events']['count'] ?? 0,

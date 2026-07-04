@@ -151,10 +151,7 @@ class MarkdownExporter
             if (!empty($model['fillable'])) $md[] = "- **Attributes:** `" . implode('`, `', $model['fillable']) . "`";
             if (!empty($model['traits'])) $md[] = "- **Traits:** " . implode(', ', $model['traits']);
             if (!empty($model['relations'])) {
-                $relStr = [];
-                foreach ($model['relations'] as $type => $count) {
-                    $relStr[] = "{$type}: {$count}";
-                }
+                $relStr = array_map(fn($r) => ($r['type'] ?? '?') . ': ' . ($r['target'] ?? '?'), $model['relations']);
                 $md[] = "- **Relations:** " . implode(', ', $relStr);
             }
             $md[] = "";

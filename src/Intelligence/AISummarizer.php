@@ -92,8 +92,10 @@ class AISummarizer
             $lines[] = "Casts: " . implode(', ', array_map(fn($k, $v) => "$k => $v", array_keys($casts), $casts));
         }
         if (!empty($relations)) {
-            foreach ($relations as $type => $count) {
-                $lines[] = "Relationships ({$type}): {$count} defined";
+            foreach ($relations as $rel) {
+                $relType = $rel['type'] ?? 'unknown';
+                $targetModel = $rel['target'] ?? 'unknown';
+                $lines[] = "Relationship: {$relType} -> {$targetModel}";
             }
         }
         if (!empty($model['scopes'])) {

@@ -100,9 +100,11 @@ class SemanticIndexEngine
 
         $tags = ['model', 'eloquent'];
         if (in_array('SoftDeletes', $traits)) $tags[] = 'soft-deletes';
-        foreach ($relations as $type => $count) {
-            $tags[] = $type;
+        foreach ($relations as $rel) {
+            $tags[] = $rel['type'] ?? 'unknown';
         }
+
+        $relRelatedModels = array_unique(array_map(fn($r) => $r['target'] ?? 'unknown', $relations));
 
         $keywords = array_merge(
             [$m['name']],
@@ -119,7 +121,7 @@ class SemanticIndexEngine
             'responsibilities' => ['Data persistence', 'Relationships', empty($scopes) ? null : 'Query scopes: ' . implode(', ', $scopes)],
             'related_features' => $relatedControllers,
             'dependencies' => array_merge($traits ?: []),
-            'related_models' => array_keys($relations),
+            'related_models' => $relRelatedModels,
             'related_controllers' => $relatedControllers,
             'related_services' => $relatedServices,
             'related_routes' => $relatedRoutes,

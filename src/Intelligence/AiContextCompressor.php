@@ -83,10 +83,7 @@ class AiContextCompressor
         $lines[] = '## 4. Core Business Entities [confidence: 90]';
         $lines[] = '';
         foreach ($data['models']['items'] ?? [] as $model) {
-            $rels = [];
-            foreach ($model['relations'] ?? [] as $type => $count) {
-                $rels[] = "{$type}({$count})";
-            }
+            $rels = array_map(fn($r) => ($r['type'] ?? '?') . '->' . ($r['target'] ?? '?'), $model['relations'] ?? []);
             $lines[] = "- **{$model['name']}**" . (!empty($rels) ? ': ' . implode(', ', $rels) : '');
             if (!empty($model['fillable'])) {
                 $lines[] = "  - Attributes: " . implode(', ', array_slice($model['fillable'], 0, 8)) . (count($model['fillable']) > 8 ? '...' : '');

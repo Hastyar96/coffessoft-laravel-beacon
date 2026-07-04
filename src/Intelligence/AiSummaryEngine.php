@@ -138,8 +138,10 @@ class AiSummaryEngine
         }
         if (!empty($relations)) {
             $relStr = [];
-            foreach ($relations as $type => $count) {
-                $relStr[] = "{$type} ({$count})";
+            foreach ($relations as $rel) {
+                $relType = $rel['type'] ?? 'unknown';
+                $relTarget = $rel['target'] ?? 'unknown';
+                $relStr[] = "{$relType} -> {$relTarget}";
             }
             $lines[] = "**Relationships:** " . implode(', ', $relStr);
         }

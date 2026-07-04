@@ -127,11 +127,13 @@ class DatabaseIntelligence
             $modelName = $model['name'];
             $relations = $model['relations'] ?? [];
 
-            foreach ($relations as $type => $count) {
+            foreach ($relations as $rel) {
+                $relType = $rel['type'] ?? 'unknown';
+                $targetModel = $rel['target'] ?? 'unknown';
                 $relationships[] = [
                     'from_model' => $modelName,
-                    'type' => $type,
-                    'count' => $count,
+                    'type' => $relType,
+                    'target' => $targetModel,
                 ];
             }
         }

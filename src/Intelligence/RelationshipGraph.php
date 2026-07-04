@@ -30,14 +30,8 @@ class RelationshipGraph
                 'path' => $model['path'] ?? '',
             ];
 
-            // Add relationship edges between models
-            $relations = $model['relations'] ?? [];
-            foreach ($relations as $type => $count) {
-                if ($count > 0) {
-                    // We can't determine the target model without deeper analysis
-                    // but we note the relationship type exists
-                }
-            }
+            // Relations are stored as array of ['method', 'type', 'target', 'evidence']
+            // Edge creation for model-to-model relations is handled in buildVerifiedGraph
         }
 
         // Add controller nodes and connect to models

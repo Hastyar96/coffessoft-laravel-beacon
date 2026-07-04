@@ -485,10 +485,7 @@ class FeatureMapGenerator
             }
             $rels = $model['relations'] ?? [];
             if (!empty($rels)) {
-                $relDesc = [];
-                foreach ($rels as $type => $count) {
-                    $relDesc[] = "{$type}({$count})";
-                }
+                $relDesc = array_map(fn($r) => ($r['type'] ?? '?') . '->' . ($r['target'] ?? '?'), $rels);
                 $parts[] = "relationships: " . implode(', ', $relDesc);
             }
         }
