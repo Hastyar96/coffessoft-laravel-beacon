@@ -533,7 +533,8 @@ class KnowledgeGraphEngine
                 $target = $rel['target'] ?? null;
                 if ($target === null) continue;
 
-                $shortTarget = (new \ReflectionClass($target))->getShortName();
+                $parts = explode('\\', $target);
+                $shortTarget = end($parts);
                 $targetNode = $this->nodeId('model', $shortTarget);
                 $this->addEdgeWithEvidence($modelNode, $targetNode, 'relates_to', $rel['type'], 'relationship_method', [
                     'method' => $rel['method'] ?? '',

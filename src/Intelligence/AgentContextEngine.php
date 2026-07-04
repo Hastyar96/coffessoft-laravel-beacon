@@ -271,7 +271,7 @@ class AgentContextEngine
                 if ($model['name'] !== $fileName) continue;
                 foreach ($model['relations'] ?? [] as $rel) {
                     $target = $rel['target'] ?? '';
-                    $shortTarget = (new \ReflectionClass($target))->getShortName();
+                    $_parts = explode('\\', $target); $shortTarget = end($_parts);
                     $impact['affected_models'][] = [
                         'class' => $shortTarget,
                         'relationship' => $rel['type'],
@@ -317,7 +317,7 @@ class AgentContextEngine
             'evidence' => 'symbol_rename_engine',
         ];
 
-        $shortName = (new \ReflectionClass($symbolName))->getShortName();
+        $_parts = explode('\\', $symbolName); $shortName = end($_parts);
 
         switch ($symbolType) {
             case 'controller':
@@ -356,7 +356,7 @@ class AgentContextEngine
                 foreach ($allData['models']['items'] ?? [] as $model) {
                     foreach ($model['relations'] ?? [] as $rel) {
                         $target = $rel['target'] ?? '';
-                        $targetShort = (new \ReflectionClass($target))->getShortName();
+                        $_parts = explode('\\', $target); $targetShort = end($_parts);
                         if ($targetShort === $shortName) {
                             $impact['occurrences'][] = [
                                 'file' => $model['path'],
@@ -562,7 +562,7 @@ class AgentContextEngine
         foreach ($allData['models']['items'] ?? [] as $model) {
             foreach ($model['relations'] ?? [] as $rel) {
                 $target = $rel['target'] ?? '';
-                $shortTarget = $target ? (new \ReflectionClass($target))->getShortName() : '?';
+                $_parts = explode('\\', $target); $shortTarget = $target ? end($_parts) : '?';
 
                 $forwardGraph[] = [
                     'caller' => $model['name'],
@@ -815,7 +815,7 @@ class AgentContextEngine
     private function findReferences(string $symbol, array $allData): array
     {
         $refs = [];
-        $short = (new \ReflectionClass($symbol))->getShortName();
+        $_parts = explode('\\', $symbol); $short = end($_parts);
 
         // Check controllers
         foreach ($allData['controllers']['items'] ?? [] as $ctrl) {

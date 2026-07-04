@@ -387,7 +387,7 @@ class ModelScanner
         $groups = [];
         foreach ($items as $model) {
             foreach ($model['traits'] as $trait) {
-                $short = (new \ReflectionClass($trait))->getShortName();
+                $short = $this->shortClassName($trait);
                 if (!isset($groups[$short])) {
                     $groups[$short] = [];
                 }
@@ -402,7 +402,7 @@ class ModelScanner
         $chain = [];
         foreach ($items as $model) {
             if ($model['parent'] && $model['parent'] !== 'Model' && !str_contains($model['parent'], 'Illuminate\\')) {
-                $parentShort = (new \ReflectionClass($model['parent']))->getShortName();
+                $parentShort = $this->shortClassName($model['parent']);
                 foreach ($items as $potential) {
                     if ($potential['name'] === $parentShort || $potential['fqcn'] === $model['parent']) {
                         $chain[] = [
@@ -415,6 +415,12 @@ class ModelScanner
             }
         }
         return $chain;
+    }
+
+    private function shortClassName(string $fqcn): string
+    {
+        $parts = explode('\\', $fqcn);
+        return end($parts);
     }
 
     private function modelNameToTable(string $name): string

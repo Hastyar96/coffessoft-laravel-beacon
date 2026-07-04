@@ -81,7 +81,8 @@ class RelationshipGraph
             // Connect to referenced models
             $refModels = $service['referenced_models'] ?? [];
             foreach ($refModels as $ref) {
-                $shortName = (new \ReflectionClass($ref))->getShortName();
+                $parts = explode('\\', $ref);
+                $shortName = end($parts);
                 if (isset($nodes['model:' . $shortName])) {
                     $edges[] = [
                         'from' => $nodeId,
