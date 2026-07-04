@@ -143,7 +143,7 @@ class ReviewEngine
         $findings = [];
         foreach ($data['models']['items'] ?? [] as $m) {
             $totalBehaviors = count($m['scopes'] ?? []) + count($m['accessors'] ?? []) + count($m['mutators'] ?? []);
-            $totalRelations = array_sum($m['relations'] ?? []);
+            $totalRelations = count($m['relations'] ?? []);
             $total = $totalBehaviors + $totalRelations;
 
             if ($total <= 20) continue;
