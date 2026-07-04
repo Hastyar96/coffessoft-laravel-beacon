@@ -1,6 +1,6 @@
-# Laravel Beacon v5.0
+# Laravel Beacon
 
-**AI Development Copilot for Laravel** — Scan, understand, analyze, and improve any Laravel project.
+**Project Intelligence Engine for Laravel** — Scan, understand, and export clean context for any Laravel project.
 
 Transform static project analysis into actionable AI context. Beacon helps AI assistants (ChatGPT, Claude, Gemini, Cursor, Cline, Copilot) understand a Laravel project almost as if they had been developed together with the original team from day one.
 
@@ -32,10 +32,10 @@ The service provider auto-discovers via Laravel package discovery.
 
 | Laravel | PHP | Support Level |
 |---------|-----|--------------|
+| 12.x | 8.2–8.4 | ✅ Official |
 | 11.x | 8.1–8.4 | ✅ Official |
 | 10.x | 8.1–8.3 | ✅ Official |
 | 9.x | 8.1–8.2 | ✅ Official |
-| 8.x | 8.1 | ⚠️ Best-effort |
 
 ---
 
@@ -194,7 +194,7 @@ v5.0 AI Copilot (5 NEW engines):
 ## Requirements
 
 - PHP 8.1+
-- Laravel 9.x, 10.x, or 11.x (8.x best-effort)
+- Laravel 9.x, 10.x, 11.x, or 12.x
 
 ---
 
