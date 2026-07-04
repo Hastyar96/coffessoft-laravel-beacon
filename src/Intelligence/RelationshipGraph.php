@@ -240,4 +240,148 @@ class RelationshipGraph
 
         return $name . 'Controller';
     }
+
+    /**
+     * Build a fully verified dependency graph from proven scanner data.
+     *
+     * This method uses ONLY the proven relationships extracted by the v6 scanners
+     * (e.g., controller->models_used rather than inferring from naming conventions).
+     */
+    public function buildVerifiedGraph(array $data): array
+    {
+        $nodes = [];
+        $edges = [];
+
+        // Add nodes from controllers with proven relationships
+        foreach ($data['controllers']['items'] ?? [] as $ctrl) {
+            $ctrlNode = 'controller:' . $ctrl['name'];
+            $nodes[$ctrlNode] = [
+                'id' => $ctrlNode,
+                'type' => 'controller',
+                'name' => $ctrl['name'],
+                'fqcn' => $ctrl['fqcn'] ?? '',
+                'path' => $ctrl['path'] ?? '',
+            ];
+
+            // Add proven model relationships (from source code analysis, not naming)
+            foreach ($ctrl['models_used'] ?? [] as $modelRef) {
+                $modelNode = 'model:' . $modelRef['class'];
+                if (!isset($nodes[$modelNode])) {
+                    $nodes[$modelNode] = [
+                        'id' => $modelNode,
+                        'type' => 'model',
+                        'name' => $modelRef['class'],
+                    ];
+                }
+
+                $edges[] = [
+                    'from' => $ctrlNode,
+                    'to' => $modelNode,
+                    'type' => 'uses',
+                    'label' => implode(', ', $modelRef['methods'] ?? []),
+                    'evidence' => 'static_method_call',
+                    'lines' => $modelRef['lines'] ?? [],
+                ];
+            }
+
+            // Add proven service relationships
+            foreach ($ctrl['constructor_dependencies'] ?? [] as $dep) {
+                $svcNode = 'service:' . $dep['class'];
+                if (!isset($nodes[$svcNode])) {
+                    $nodes[$svcNode] = [
+                        'id' => $svcNode,
+                        'type' => 'service',
+                        'name' => $dep['class'],
+                    ];
+                }
+
+                $edges[] = [
+                    'from' => $ctrlNode,
+                    'to' => $svcNode,
+                    'type' => 'injects',
+                    'evidence' => 'constructor_type_hint',
+                    'line' => $dep['line'] ?? null,
+                ];
+            }
+
+            // Add proven event dispatch relationships
+            foreach ($ctrl['events_dispatched'] ?? [] as $event) {
+                $eventNode = 'event:' . $event['class'];
+                if (!isset($nodes[$eventNode])) {
+                    $nodes[$eventNode] = [
+                        'id' => $eventNode,
+                        'type' => 'event',
+                        'name' => $event['class'],
+                    ];
+                }
+
+                $edges[] = [
+                    'from' => $ctrlNode,
+                    'to' => $eventNode,
+                    'type' => 'dispatches',
+                    'evidence' => 'dispatch_call',
+                    'lines' => $event['lines'] ?? [],
+                ];
+            }
+
+            // Add proven job dispatch relationships
+            foreach ($ctrl['jobs_dispatched'] ?? [] as $job) {
+                $jobNode = 'job:' . $job['class'];
+                if (!isset($nodes[$jobNode])) {
+                    $nodes[$jobNode] = [
+                        'id' => $jobNode,
+                        'type' => 'job',
+                        'name' => $job['class'],
+                    ];
+                }
+
+                $edges[] = [
+                    'from' => $ctrlNode,
+                    'to' => $jobNode,
+                    'type' => 'dispatches',
+                    'evidence' => 'dispatch_call',
+                    'lines' => $job['lines'] ?? [],
+                ];
+            }
+        }
+
+        // Add route→controller edges (proven from route registration)
+        foreach ($data['routes']['items'] ?? [] as $route) {
+            $controller = $route['controller'] ?? null;
+            $shortName = $route['controller_short'] ?? null;
+
+            if ($controller === null && $shortName === null) continue;
+
+            $routeNode = 'route:' . ($route['name'] ?? $route['uri']);
+            if (!isset($nodes[$routeNode])) {
+                $nodes[$routeNode] = [
+                    'id' => $routeNode,
+                    'type' => 'route',
+                    'name' => $route['name'] ?? $route['uri'],
+                    'uri' => $route['uri'],
+                ];
+            }
+
+            $ctrlNode = 'controller:' . $shortName;
+            if (isset($nodes[$ctrlNode])) {
+                $edges[] = [
+                    'from' => $routeNode,
+                    'to' => $ctrlNode,
+                    'type' => 'routes_to',
+                    'label' => $route['method'] ?? 'handle',
+                    'evidence' => 'route_action',
+                ];
+            }
+        }
+
+        return [
+            'verified_project_graph' => [
+                'nodes' => array_values($nodes),
+                'nodes_count' => count($nodes),
+                'edges' => $edges,
+                'edges_count' => count($edges),
+                'note' => 'All relationships are proven from source code analysis. No naming-convention inference.',
+            ],
+        ];
+    }
 }

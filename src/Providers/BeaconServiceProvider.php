@@ -45,7 +45,9 @@ use Coffesoft\LaravelBeacon\Intelligence\SecurityAnalyzer;
 use Coffesoft\LaravelBeacon\Intelligence\SemanticIndexEngine;
 use Coffesoft\LaravelBeacon\Intelligence\TaskContextEngine;
 use Coffesoft\LaravelBeacon\Intelligence\WorkflowDetector;
+use Coffesoft\LaravelBeacon\Reader\BladeHtmlParser;
 use Coffesoft\LaravelBeacon\Reader\FileReader;
+use Coffesoft\LaravelBeacon\Reader\MethodBodyAnalyzer;
 use Coffesoft\LaravelBeacon\Reader\PhpParser;
 use Coffesoft\LaravelBeacon\Scanner\APIScanner;
 use Coffesoft\LaravelBeacon\Scanner\BladeScanner;
@@ -82,6 +84,8 @@ class BeaconServiceProvider extends ServiceProvider
 
         $this->app->singleton(FileReader::class);
         $this->app->singleton(PhpParser::class);
+        $this->app->singleton(MethodBodyAnalyzer::class);
+        $this->app->singleton(BladeHtmlParser::class);
 
         // Scanners
         $this->app->singleton(ModelScanner::class);

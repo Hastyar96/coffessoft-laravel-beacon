@@ -11,28 +11,11 @@ use Illuminate\Console\Command;
 
 class BeaconScanCommand extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
     protected $signature = 'beacon:scan
-                            {--output= : Output directory (default: storage/app/beacon)}
-                            {--format=all : Output formats: all, json, md, both}
-                            {--scanner=* : Specific scanners to run (e.g. --scanner=models --scanner=controllers)}
-                            {--no-intelligence : Skip intelligence analysis}
-                            {--memory-report : Show memory usage after scan}';
+                            {--output= : Output directory (default: storage/app/beacon)}';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Scan Laravel project and generate comprehensive AI project intelligence';
+    protected $description = 'Scan Laravel project and generate comprehensive project intelligence';
 
-    /**
-     * Create a new command instance.
-     */
     public function __construct(
         private readonly ContextBuilder $builder,
         private readonly JsonExporter $jsonExporter,
@@ -41,48 +24,36 @@ class BeaconScanCommand extends Command
         parent::__construct();
     }
 
-    /**
-     * Execute the console command.
-     */
     public function handle(): int
     {
         $startTime = microtime(true);
         $startMemory = memory_get_usage(true);
 
         $this->newLine();
-        $this->info(' 🚀 Laravel Beacon v2 — AI Project Intelligence Engine');
-        $this->line(' ─────────────────────────────────────────────────────');
+        $this->info('  Beacon — Project Intelligence');
+        $this->line('  ' . str_repeat('─', 40));
         $this->newLine();
-
-        // Phase 1: Check project type
-        $this->warn(' Phase 1: Analyzing project structure...');
 
         $laravelVersion = app()->version();
         $phpVersion = PHP_VERSION;
-        $this->line("   Laravel: v{$laravelVersion}");
-        $this->line("   PHP:     v{$phpVersion}");
+        $this->line("  Laravel: v{$laravelVersion}");
+        $this->line("  PHP:     v{$phpVersion}");
         $this->newLine();
 
-        // Phase 2: Scan
-        $this->warn(' Phase 2: Running scanners...');
-
-        $progress = $this->output->createProgressBar(25);
-        $progress->setFormat(' %current%/%max% [%bar%] %message%');
-        $progress->setMessage('Scanning...');
+        $this->line('  Running scanners...');
+        $this->newLine();
 
         try {
             $context = $this->builder->build();
         } catch (\Throwable $e) {
-            $this->error(" Scan failed: {$e->getMessage()}");
-            $this->line($e->getTraceAsString());
+            $this->error("  Scan failed: {$e->getMessage()}");
             return self::FAILURE;
         }
 
-        $progress->finish();
-        $this->newLine(2);
+        $this->info('  ✓ Scan complete');
+        $this->newLine();
 
-        // Phase 3: Export
-        $this->warn(' Phase 3: Generating output files...');
+        $this->line('  Generating output files...');
 
         $outputDir = $this->option('output') ?? config('beacon.output_directory', 'storage/app/beacon');
         $outputPath = storage_path(str_replace('storage/', '', $outputDir));
@@ -94,44 +65,38 @@ class BeaconScanCommand extends Command
         $context->set('output_directory', $outputPath);
 
         try {
-            // Write context.md
             $mdPath = $outputPath . '/context.md';
-            $this->jsonExporter->export($context, $mdPath);
-            $this->line("   ✓ context.md       -> {$this->shortPath($mdPath)}");
+            $this->markdownExporter->export($context, $mdPath);
+            $this->line('    ✓ context.md');
 
-            // Write context.json
             $jsonPath = $outputPath . '/context.json';
             $this->jsonExporter->export($context, $jsonPath);
-            $this->line("   ✓ context.json     -> {$this->shortPath($jsonPath)}");
+            $this->line('    ✓ context.json');
 
-            // Write project-graph.json
             $graphPath = $outputPath . '/project-graph.json';
-            $this->markdownExporter->export($context, $graphPath);
-            $this->line("   ✓ project-graph    -> {$this->shortPath($graphPath)}");
+            $this->jsonExporter->export($context, $graphPath);
+            $this->line('    ✓ project-graph.json');
 
-            // Write architecture.json
             $archPath = $outputPath . '/architecture.json';
             $this->jsonExporter->export($context, $archPath);
-            $this->line("   ✓ architecture     -> {$this->shortPath($archPath)}");
+            $this->line('    ✓ architecture.json');
 
         } catch (\Throwable $e) {
-            $this->error(" Export failed: {$e->getMessage()}");
+            $this->error("  Export failed: {$e->getMessage()}");
             return self::FAILURE;
         }
 
         $this->newLine();
 
-        // Summary
         $duration = round(microtime(true) - $startTime, 2);
         $peakMemory = memory_get_peak_usage(true);
-        $peakMemoryFormatted = $this->formatBytes($peakMemory);
 
-        $this->info(' ✅ Scan complete!');
+        $this->info('  Scan complete!');
         $this->table(
             ['Metric', 'Value'],
             [
                 ['Duration', "{$duration}s"],
-                ['Peak Memory', $peakMemoryFormatted],
+                ['Peak Memory', $this->formatBytes($peakMemory)],
                 ['Total Files', $context->get('statistics.total_php_files', 0)],
                 ['Models', $context->get('models.count', 0)],
                 ['Controllers', $context->get('controllers.count', 0)],
@@ -143,19 +108,10 @@ class BeaconScanCommand extends Command
         );
 
         $this->newLine();
-        $this->line(" Output directory: {$outputPath}");
+        $this->line("  Output: {$outputPath}");
         $this->newLine();
 
         return self::SUCCESS;
-    }
-
-    private function shortPath(string $path): string
-    {
-        $base = base_path();
-        if (str_starts_with($path, $base)) {
-            return substr($path, strlen($base) + 1);
-        }
-        return $path;
     }
 
     private function formatBytes(int $bytes): string

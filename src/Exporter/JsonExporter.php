@@ -79,7 +79,7 @@ class JsonExporter
                 'name' => basename(base_path()),
                 'framework' => $data['framework'] ?? [],
                 'generated_at' => $data['generated_at'] ?? null,
-                'beacon_version' => $data['beacon_version'] ?? '2.1.0',
+                'beacon_version' => $data['beacon_version'] ?? '1.0.0',
             ],
             'summary' => [
                 'models' => $data['models']['count'] ?? 0,

@@ -1,1 +1,10 @@
-/vendor/
+/composer.lock
+/.cache
+/storage
+/beacon-test
+/node_modules
+/vendor
+/.phpunit.result.cache
+/.php_cs
+/.php_cs.cache
+/coverage

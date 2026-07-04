@@ -54,8 +54,9 @@ class AutoControllerSplitter
     {
         $groups = [];
         $used = [];
+        $ctrlBase = preg_replace('/Controller$/', '', $ctrlName);
 
-        // Group methods by model name match
+        // Group methods by model/domain name match (these get domain-specific controller names)
         foreach ($methods as $m) {
             foreach ($modelNames as $model) {
                 $modelLower = strtolower($model);
@@ -67,32 +68,43 @@ class AutoControllerSplitter
             }
         }
 
-        // Group remaining by prefix (e.g. "export" from "exportCSV", "exportPDF")
+        // Group remaining methods by extracting the domain from method names
+        // e.g. "deleteWorkout" → domain="Workout", "exportReport" → domain="Report"
         foreach ($methods as $m) {
             if (in_array($m, $used)) continue;
-            // Extract meaningful prefix (e.g. "get", "set", "create", "find")
-            if (preg_match('/^(get|set|create|find|search|list|show|store|update|delete|export|import|process|handle|calculate|validate|notify|send|generate)(\w+)?/i', $m, $parts)) {
-                $key = ucfirst(strtolower($parts[1]));
-                $groups[$key][] = $m;
+            // Extract domain from CamelCase: "deleteWorkout" → "Workout", "showAllReports" → "Reports"
+            if (preg_match('/^(?:get|set|create|store|update|delete|destroy|find|search|list|show|export|import|process|handle|calculate|validate|notify|send|generate|view|edit)([A-Z]\w*)/i', $m, $parts)) {
+                $domain = $parts[1]; // e.g. "Workout" from "deleteWorkout"
+                $groups[$domain][] = $m;
                 $used[] = $m;
             }
         }
 
-        // Remaining methods go to "General"
+        // Remaining methods: group by the original controller's base name as context
         $remaining = array_diff($methods, $used);
         foreach ($remaining as $m) {
-            $groups['General'][] = $m;
+            // Try to extract any noun from the method name
+            if (preg_match('/[A-Z]\w+/', $m, $parts)) {
+                $groups[$parts[0]][] = $m;
+            } else {
+                $groups[$ctrlBase][] = $m;
+            }
         }
 
-        // Build new controller definitions
+        // Build new controller definitions with domain-specific names
         $newControllers = [];
+        $actionPrefixes = ['Get', 'Set', 'Create', 'Store', 'Update', 'Delete', 'Destroy', 'Find', 'Search',
+                           'List', 'Show', 'Export', 'Import', 'Process', 'Handle', 'Calculate',
+                           'Validate', 'Notify', 'Send', 'Generate', 'View', 'Edit'];
+
         foreach ($groups as $name => $groupMethods) {
             if (count($groupMethods) < 1) continue;
 
-            // Derive controller name
-            if ($name === 'General') {
-                $ctrlBase = preg_replace('/Controller$/', '', $ctrlName);
-                $newName = "{$ctrlBase}GeneralController";
+            // NEVER generate names like "DeleteController" or "ShowController"
+            // Always use domain-specific names
+            if (in_array($name, $actionPrefixes)) {
+                // Use the original base name for context: e.g. "Admin" + "Report" = "AdminReportController"
+                $newName = "{$ctrlBase}{$name}Controller";
             } else {
                 $newName = "{$name}Controller";
             }

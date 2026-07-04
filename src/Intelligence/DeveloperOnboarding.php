@@ -19,7 +19,7 @@ class DeveloperOnboarding
 
         $lines[] = '# Developer Onboarding Guide';
         $lines[] = '';
-        $lines[] = '> Generated automatically by Laravel Beacon v2.1';
+        $lines[] = '> Generated automatically by Laravel Beacon v5';
         $lines[] = '> Confidence scores (0–100) indicate reliability of each section.';
         $lines[] = '';
 

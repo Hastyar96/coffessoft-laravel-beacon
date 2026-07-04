@@ -25,6 +25,7 @@ use Coffesoft\LaravelBeacon\Intelligence\RouteIntelligence;
 use Coffesoft\LaravelBeacon\Intelligence\SecurityAnalyzer;
 use Coffesoft\LaravelBeacon\Intelligence\WorkflowDetector;
 use Coffesoft\LaravelBeacon\Reader\FileReader;
+use Coffesoft\LaravelBeacon\Reader\MethodBodyAnalyzer;
 use Coffesoft\LaravelBeacon\Reader\PhpParser;
 use Coffesoft\LaravelBeacon\Scanner\APIScanner;
 use Coffesoft\LaravelBeacon\Scanner\BladeScanner;
@@ -206,7 +207,7 @@ class ContextBuilder
 
         // Timestamp
         $context->set('generated_at', now()->toIso8601String());
-        $context->set('beacon_version', '2.1.0');
+        $context->set('beacon_version', '1.0.0');
 
         return $context;
     }
