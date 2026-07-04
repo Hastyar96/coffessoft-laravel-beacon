@@ -10,7 +10,7 @@ use Coffesoft\LaravelBeacon\Reader\FileReader;
  * v6.5 BladeScanner — scans Blade templates for layout inheritance,
  * components, sections, and view hierarchy.
  *
- * Preserves backward compatibility with v5 output format.
+ * ONLY uses static source code parsing - no class instantiation, no autoloading.
  */
 class BladeScanner
 {
@@ -25,15 +25,16 @@ class BladeScanner
             return ['blade' => ['count' => 0, 'layouts' => [], 'components' => [], 'views' => []]];
         }
 
-        $files = $this->reader->getPhpFiles($viewPath);
+        $files = $this->getBladeFiles($viewPath);
 
         $layouts = [];
         $components = [];
         $views = [];
 
         foreach ($files as $file) {
-            $contents = $file->getContents();
-            $relativePath = $file->getRelativePathname();
+            $contents = $this->reader->read($file['pathname']);
+            if ($contents === '') continue;
+            $relativePath = $file['relative_path'];
             $viewName = $this->pathToViewName($relativePath);
 
             $viewData = [
@@ -49,36 +50,59 @@ class BladeScanner
                 'props' => $this->extractProps($contents),
             ];
 
-            if (str_contains($viewName, 'layouts')) {
-                $layouts[] = $viewData;
-            } elseif (str_contains($viewName, 'components')) {
-                $components[] = $viewData;
-            } else {
-                $views[] = $viewData;
+            $views[] = $viewData;
+
+            if (!empty($viewData['extends'])) {
+                $layouts[$viewData['extends']] = true;
             }
         }
 
-        $anonymousComponents = $this->findAnonymousComponents($viewPath);
-
         return [
             'blade' => [
-                'count' => count($files),
-                'layouts' => $layouts,
-                'components' => array_merge($components, $anonymousComponents),
+                'count' => count($views),
+                'layouts' => array_keys($layouts),
+                'components' => $components,
                 'views' => $views,
             ],
         ];
     }
 
+    private function getBladeFiles(string $path): array
+    {
+        $result = [];
+        $basePath = rtrim(realpath($path), '/');
+        try {
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS)
+            );
+            foreach ($iterator as $file) {
+                if ($file->isFile() && $file->getExtension() === 'blade.php') {
+                    $pathname = $file->getPathname();
+                    $relativePath = str_replace($basePath . '/', '', $pathname);
+                    $result[] = [
+                        'pathname' => $pathname,
+                        'relative_path' => $relativePath,
+                        'filename' => $file->getFilename(),
+                    ];
+                }
+            }
+        } catch (\Throwable) {
+            return [];
+        }
+        return $result;
+    }
+
     private function pathToViewName(string $path): string
     {
-        $name = str_replace(['.blade.php', '/'], ['', '.'], $path);
+        $name = preg_replace('/\.blade\.php$/', '', $path);
+        $name = str_replace('/', '.', $name);
+        $name = str_replace('\\', '.', $name);
         return $name;
     }
 
     private function extractExtends(string $contents): ?string
     {
-        if (preg_match('/@extends\s*\(\s*[\'"]([^\'"]+)[\'"]/', $contents, $m)) {
+        if (preg_match('/@extends\([\'"]([^\'"]+)[\'"]\)/', $contents, $m)) {
             return $m[1];
         }
         return null;
@@ -87,27 +111,21 @@ class BladeScanner
     private function extractSections(string $contents): array
     {
         $sections = [];
-        if (preg_match_all('/@section\s*\(\s*[\'"]([^\'"]+)[\'"]/', $contents, $matches)) {
-            $sections = $matches[1];
+        if (preg_match_all('/@section\([\'"]([^\'"]+)[\'"]/', $contents, $m)) {
+            $sections = array_unique($m[1]);
         }
-        return array_values(array_unique($sections));
+        return array_values($sections);
     }
 
     private function extractIncludes(string $contents): array
     {
         $includes = [];
-        $patterns = [
-            '/@include\s*\(\s*[\'"]([^\'"]+)[\'"]/',
-            '/@includeIf\s*\(\s*[\'"]([^\'"]+)[\'"]/',
-            '/@includeWhen\s*\([^,]+,\s*[\'"]([^\'"]+)[\'"]/',
-        ];
-
-        foreach ($patterns as $pattern) {
-            if (preg_match_all($pattern, $contents, $matches)) {
-                $includes = array_merge($includes, $matches[1]);
-            }
+        if (preg_match_all('/@include(?:If|When|Unless)?\([\'"]([^\'"]+)[\'"]/', $contents, $m)) {
+            $includes = array_unique($m[1]);
         }
-
+        if (preg_match_all('/@each\([\'"]([^\'"]+)[\'"]/', $contents, $m)) {
+            $includes = array_merge($includes, $m[1]);
+        }
         return array_values(array_unique($includes));
     }
 
@@ -115,18 +133,19 @@ class BladeScanner
     {
         $components = [];
 
-        // <x- components (class-based and anonymous)
-        if (preg_match_all('/<x-([\w.-]+)/', $contents, $matches)) {
-            foreach ($matches[1] as $comp) {
-                $components[] = $comp;
-            }
+        // <x- prefix components
+        if (preg_match_all('/<x-([a-zA-Z0-9_.-]+)/', $contents, $m)) {
+            $components = array_unique($m[1]);
         }
 
         // @component directive
-        if (preg_match_all('/@component\s*\(\s*[\'"]([^\'"]+)[\'"]/', $contents, $matches)) {
-            foreach ($matches[1] as $comp) {
-                $components[] = $comp;
-            }
+        if (preg_match_all('/@component\([\'"]([^\'"]+)[\'"]/', $contents, $m)) {
+            $components = array_merge($components, $m[1]);
+        }
+
+        // @livewire directive
+        if (preg_match_all('/@livewire\([\'"]([^\'"]+)[\'"]/', $contents, $m)) {
+            $components = array_merge($components, $m[1]);
         }
 
         return array_values(array_unique($components));
@@ -135,78 +154,42 @@ class BladeScanner
     private function extractStacks(string $contents): array
     {
         $stacks = [];
-        if (preg_match_all('/@stack\s*\(\s*[\'"]([^\'"]+)[\'"]/', $contents, $matches)) {
-            $stacks = $matches[1];
+        if (preg_match_all('/@stack\([\'"]([^\'"]+)[\'"]\)/', $contents, $m)) {
+            $stacks = array_unique($m[1]);
         }
-        return array_values(array_unique($stacks));
+        return array_values($stacks);
     }
 
     private function extractPushes(string $contents): array
     {
         $pushes = [];
-        if (preg_match_all('/@push\s*\(\s*[\'"]([^\'"]+)[\'"]/', $contents, $matches)) {
-            $pushes = $matches[1];
+        if (preg_match_all('/@push\([\'"]([^\'"]+)[\'"]\)/', $contents, $m)) {
+            $pushes = array_unique($m[1]);
         }
-        return array_values(array_unique($pushes));
+        return array_values($pushes);
     }
 
     private function extractSlots(string $contents): array
     {
         $slots = [];
-
-        // Named slots: <x-slot name="..."
-        if (preg_match_all('/<x-slot\s+name\s*=\s*[\'"]([^\'"]+)[\'"]/', $contents, $matches)) {
-            $slots = array_merge($slots, $matches[1]);
+        if (preg_match_all('/@slot\([\'"]([^\'"]+)[\'"]\)/', $contents, $m)) {
+            $slots = array_unique($m[1]);
         }
-        // @slot directives
-        if (preg_match_all('/@slot\s*\(\s*[\'"]([^\'"]+)[\'"]/', $contents, $matches)) {
-            $slots = array_merge($slots, $matches[1]);
-        }
-
-        return array_values(array_unique($slots));
+        return array_values($slots);
     }
 
     private function extractProps(string $contents): array
     {
         $props = [];
-
-        // @props(['...'])
-        if (preg_match('/@props\(\[([^\]]+)\]\)/', $contents, $m)) {
-            preg_match_all('/[\'"]([^\'"]+)[\'"]/', $m[1], $matches);
-            $props = $matches[1];
+        // Extract from @props directive
+        if (preg_match_all('/@props\(\[([^\]]*)\]\)/', $contents, $m)) {
+            preg_match_all('/[\'"]([^\'"]+)[\'"]/', $m[1], $p);
+            $props = $p[1] ?? [];
         }
-
-        // {{ $... }} variables (simplistic detection)
-        if (preg_match_all('/\{\{\s*\$(\w+)\s*\}\}/', $contents, $matches)) {
-            $vars = array_diff($matches[1], ['slot', 'attributes']);
-            $props = array_merge($props, $vars);
+        // Extract from $attributes
+        if (preg_match_all('/\$([a-z_]+)\b(?=\s*[=)])/i', $contents, $m)) {
+            $props = array_merge($props, $m[1]);
         }
-
         return array_values(array_unique($props));
-    }
-
-    private function findAnonymousComponents(string $viewPath): array
-    {
-        $components = [];
-
-        // Anonymous components are in resources/views/components/
-        $anonPath = $viewPath . '/components';
-        if (!is_dir($anonPath)) return $components;
-
-        $files = $this->reader->getPhpFiles($anonPath);
-        foreach ($files as $file) {
-            $relativePath = $file->getRelativePathname();
-            $components[] = [
-                'name' => $this->pathToViewName('components.' . $relativePath),
-                'path' => $relativePath,
-                'anonymous' => true,
-                'extends' => null,
-                'sections' => [],
-                'includes' => $this->extractIncludes($file->getContents()),
-                'components' => $this->extractComponents($file->getContents()),
-            ];
-        }
-
-        return $components;
     }
 }

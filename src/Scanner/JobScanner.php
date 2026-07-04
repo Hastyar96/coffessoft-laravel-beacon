@@ -8,7 +8,8 @@ use Coffesoft\LaravelBeacon\Reader\FileReader;
 use Coffesoft\LaravelBeacon\Reader\PhpParser;
 
 /**
- * Scans app/Jobs and detects queued/sync jobs and dispatch locations.
+ * Scans for Job classes and their dispatch points.
+ * ONLY uses static source code parsing - no class instantiation, no autoloading.
  */
 class JobScanner
 {
@@ -19,123 +20,133 @@ class JobScanner
 
     public function scan(): array
     {
-        $path = app_path('Jobs');
-        if (!is_dir($path)) {
-            return ['jobs' => ['count' => 0, 'items' => [], 'dispatchers' => []]];
-        }
-
-        $items = [];
-        foreach ($this->reader->getPhpFiles($path) as $file) {
-            $contents = $this->reader->read($file->getPathname());
-            $parsed = $this->parser->parse($contents);
-            if ($parsed['class_name'] === null) continue;
-
-            $shouldQueue = $this->implementsInterface($contents, 'ShouldQueue');
-            $interactsWithQueue = str_contains($contents, 'InteractsWithQueue');
-            $queueable = str_contains($contents, 'Queueable');
-            $serializesModels = str_contains($contents, 'SerializesModels');
-
-            // Detect middleware
-            $middleware = [];
-            if (preg_match_all('/function\s+middleware\s*\([^)]*\)\s*(?::\s*array)?\s*\{/', $contents, $m)) {
-                $middleware[] = 'custom_middleware';
-            }
-
-            // Detect tags
-            $tags = [];
-            if (preg_match_all('/->tag\s*\(\s*[\'"]([^\'"]+)[\'"]/', $contents, $m)) {
-                $tags = $m[1];
-            }
-
-            // Detect unique locking
-            $uniqueFor = null;
-            if (preg_match('/uniqueFor\s*\((\d+)\)/', $contents, $m)) {
-                $uniqueFor = (int)$m[1];
-            }
-
-            $handleMethod = null;
-            foreach ($parsed['methods'] as $method) {
-                if ($method['name'] === 'handle') {
-                    $handleMethod = $method;
-                    break;
-                }
-            }
-
-            $items[] = [
-                'name' => $parsed['class_name'],
-                'namespace' => $parsed['namespace'] ?? 'App\\Jobs',
-                'path' => $file->getRelativePathname(),
-                'queued' => $shouldQueue,
-                'sync' => !$shouldQueue,
-                'unique' => $uniqueFor !== null,
-                'unique_for' => $uniqueFor,
-                'tags' => $tags,
-                'middleware' => $middleware,
-                'interacts_with_queue' => $interactsWithQueue,
-                'serializes_models' => $serializesModels,
-                'handle_params' => $handleMethod ? array_map(fn($p) => $p['name'], $handleMethod['params']) : [],
-                'methods' => array_map(fn($m) => $m['name'], $parsed['methods']),
-            ];
-        }
-
-        // Detect dispatch locations across the project
-        $dispatchers = $this->detectDispatchLocations();
+        $jobs = $this->findJobDefinitions();
+        $dispatchPoints = $this->findDispatchPoints();
 
         return [
             'jobs' => [
-                'count' => count($items),
-                'items' => $items,
-                'dispatchers' => $dispatchers,
+                'count' => count($jobs),
+                'definitions' => $jobs,
+                'dispatch_points' => $dispatchPoints,
             ],
         ];
     }
 
-    private function detectDispatchLocations(): array
+    private function findJobDefinitions(): array
     {
-        $dispatchers = [];
-        $paths = [
+        $path = app_path('Jobs');
+        if (!is_dir($path)) return [];
+
+        $jobs = [];
+
+        foreach ($this->reader->getPhpFiles($path) as $file) {
+            $contents = $this->reader->read($file['pathname']);
+            if ($contents === '') continue;
+            $parsed = $this->parser->parse($contents);
+            if ($parsed['class_name'] === null) continue;
+
+            $implementsShouldQueue = str_contains($contents, 'ShouldQueue');
+
+            $queue = null;
+            if (preg_match('/public\s+\$queue\s*=\s*[\'"]([^\'"]+)[\'"]/', $contents, $m)) {
+                $queue = $m[1];
+            }
+
+            $connection = null;
+            if (preg_match('/public\s+\$connection\s*=\s*[\'"]([^\'"]+)[\'"]/', $contents, $m)) {
+                $connection = $m[1];
+            }
+
+            $middleware = [];
+            if (preg_match_all('/public\s+function\s+middleware\s*\(\s*\)/', $contents, $m)) {
+                $middleware[] = 'custom_middleware_method';
+            }
+
+            $jobs[] = [
+                'name' => $parsed['class_name'],
+                'namespace' => $parsed['namespace'] ?? '',
+                'path' => $file['relative_path'],
+                'queue' => $queue,
+                'connection' => $connection,
+                'should_queue' => $implementsShouldQueue,
+                'middleware' => $middleware,
+                'traits' => $parsed['traits'] ?? [],
+                'constructor_deps' => $this->extractConstructorDeps($parsed['methods'] ?? []),
+                'properties' => array_map(fn($p) => $p['name'], $parsed['properties'] ?? []),
+            ];
+        }
+
+        return $jobs;
+    }
+
+    private function findDispatchPoints(): array
+    {
+        $dispatchPoints = [];
+        $scanDirs = [
             app_path('Http/Controllers'),
             app_path('Services'),
             app_path('Console/Commands'),
         ];
 
-        foreach ($paths as $path) {
-            if (!is_dir($path)) continue;
-            foreach ($this->reader->getPhpFiles($path) as $file) {
-                $contents = $this->reader->read($file->getPathname());
+        foreach ($scanDirs as $dir) {
+            if (!is_dir($dir)) continue;
+            foreach ($this->reader->getPhpFiles($dir) as $file) {
+                $contents = $this->reader->read($file['pathname']);
+                if ($contents === '') continue;
                 $parsed = $this->parser->parse($contents);
                 if ($parsed['class_name'] === null) continue;
 
-                $detected = [];
+                $dispatches = [];
+
                 // Pattern 1: JobClass::dispatch()
-                if (preg_match_all('/(\w+)::dispatch\s*\(/', $contents, $m)) {
+                if (preg_match_all('/(\w+Job)::dispatch\(/', $contents, $m)) {
                     foreach ($m[1] as $job) {
-                        if (!in_array($job, $detected)) $detected[] = $job;
-                    }
-                }
-                // Pattern 2: dispatch(new JobClass(...))
-                if (preg_match_all('/\bdispatch\s*\(\s*new\s+(\w+)/', $contents, $m)) {
-                    foreach ($m[1] as $job) {
-                        if (!in_array($job, $detected)) $detected[] = $job;
+                        $dispatches[] = ['class' => $job, 'type' => 'static_dispatch', 'line' => $this->findLine($contents, "$job::dispatch")];
                     }
                 }
 
-                if (!empty($detected)) {
-                    $dispatchers[] = [
+                // Pattern 2: dispatch(new JobClass(...))
+                if (preg_match_all('/dispatch\(\s*new\s+(\w+Job)/', $contents, $m)) {
+                    foreach ($m[1] as $job) {
+                        $dispatches[] = ['class' => $job, 'type' => 'helper_dispatch', 'line' => $this->findLine($contents, "dispatch(new $job")];
+                    }
+                }
+
+                // Pattern 3: Bus::dispatch(new JobClass)
+                if (preg_match_all('/Bus::dispatch\(\s*new\s+(\w+Job)/', $contents, $m)) {
+                    foreach ($m[1] as $job) {
+                        $dispatches[] = ['class' => $job, 'type' => 'bus_dispatch', 'line' => $this->findLine($contents, "Bus::dispatch(new $job")];
+                    }
+                }
+
+                if (!empty($dispatches)) {
+                    $dispatchPoints[] = [
                         'class' => $parsed['class_name'],
                         'namespace' => $parsed['namespace'],
-                        'path' => $file->getRelativePathname(),
-                        'dispatches' => $detected,
+                        'path' => $file['relative_path'],
+                        'dispatches' => $dispatches,
                     ];
                 }
             }
         }
 
-        return $dispatchers;
+        return $dispatchPoints;
     }
 
-    private function implementsInterface(string $contents, string $interface): bool
+    private function extractConstructorDeps(array $methods): array
     {
-        return str_contains($contents, $interface);
+        foreach ($methods as $m) {
+            if ($m['name'] === '__construct') {
+                return array_map(fn($p) => $p['type'] ?? 'unknown', $m['params'] ?? []);
+            }
+        }
+        return [];
+    }
+
+    private function findLine(string $contents, string $search): int
+    {
+        $pos = strpos($contents, $search);
+        if ($pos === false) return 0;
+        return substr_count(substr($contents, 0, $pos), "\n") + 1;
     }
 }

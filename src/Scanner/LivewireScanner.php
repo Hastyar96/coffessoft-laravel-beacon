@@ -9,6 +9,7 @@ use Coffesoft\LaravelBeacon\Reader\PhpParser;
 
 /**
  * Scans for Livewire components, views, properties, events, and computed values.
+ * ONLY uses static source code parsing - no class instantiation, no autoloading.
  */
 class LivewireScanner
 {
@@ -41,7 +42,8 @@ class LivewireScanner
         foreach ($paths as $path) {
             if (!is_dir($path)) continue;
             foreach ($this->reader->getPhpFiles($path) as $file) {
-                $contents = $file->getContents();
+                $contents = $this->reader->read($file['pathname']);
+                if ($contents === '') continue;
                 $parsed = $this->parser->parse($contents);
                 if ($parsed['class_name'] === null) continue;
 
@@ -58,56 +60,57 @@ class LivewireScanner
                     $view = $m[1];
                 } elseif (preg_match('/public\s+function\s+render\s*\(\s*\)/', $contents)) {
                     if (preg_match('/function\s+render\s*\(\s*\)\s*\{(.*?)\}/s', $contents, $m)) {
-                        if (preg_match('/->view\s*\(\s*[\'"]([^\'"]+)[\'"]/', $m[1], $sm)) {
-                            $view = $sm[1];
-                        } elseif (preg_match('/view\s*\(\s*[\'"]([^\'"]+)[\'"]/', $m[1], $sm)) {
-                            $view = $sm[1];
+                        if (preg_match('/view\(\s*[\'"]([^\'"]+)[\'"]/', $m[1], $v)) {
+                            $view = $v[1];
+                        } elseif (preg_match('/\$this->view\s*=\s*[\'"]([^\'"]+)[\'"]/', $m[1], $v)) {
+                            $view = $v[1];
                         }
                     }
                 }
 
-                // Detect events emitted and listened
-                $emits = [];
-                $listens = [];
+                // Extract properties
+                $properties = [];
+                foreach ($parsed['properties'] ?? [] as $prop) {
+                    $properties[] = [
+                        'name' => $prop['name'],
+                        'visibility' => $prop['visibility'],
+                        'type' => $prop['type'],
+                    ];
+                }
 
-                if (preg_match_all('/\$this->emit\s*\(\s*[\'"]([^\'"]+)[\'"]/', $contents, $m)) {
+                // Extract events dispatched (listens for, emits)
+                $listeners = [];
+                if (preg_match('/protected\s+\$listeners\s*=\s*\[([^\]]*)\]/s', $contents, $m)) {
+                    preg_match_all('/[\'"]([^\'"]+)[\'"]/', $m[1], $evts);
+                    $listeners = $evts[1] ?? [];
+                }
+
+                $emits = [];
+                if (preg_match_all('/\$this->emit\([\'"]([^\'"]+)[\'"]/', $contents, $m)) {
                     $emits = $m[1];
                 }
-                if (preg_match_all('/\$this->emitUp\s*\(\s*[\'"]([^\'"]+)[\'"]/', $contents, $m)) {
-                    $emits = array_merge($emits, $m[1]);
-                }
 
-                if (preg_match('/protected\s+\$listeners\s*=\s*\[([^\]]*)\]/s', $contents, $m)) {
-                    preg_match_all('/[\'"]([^\'"]+)[\'"]/', $m[1], $matches);
-                    $listens = $matches[1];
-                }
-
-                // Detect computed properties
+                // Detect computed properties (getXProperty methods)
                 $computeds = [];
-                if (preg_match_all('/public\s+function\s+get(\w+)Property\s*\(/', $contents, $m)) {
-                    foreach ($m[1] as $prop) {
-                        $computeds[] = lcfirst($prop);
-                    }
-                }
-
-                // Detect public properties
-                $publicProps = [];
-                foreach ($parsed['properties'] as $prop) {
-                    if ($prop['visibility'] === 'public' && !$prop['static']) {
-                        $publicProps[] = $prop['name'];
+                foreach ($parsed['methods'] ?? [] as $method) {
+                    if (preg_match('/^get(\w+)Property$/', $method['name'], $m)) {
+                        $computeds[] = lcfirst($m[1]);
                     }
                 }
 
                 $components[] = [
                     'name' => $parsed['class_name'],
                     'namespace' => $parsed['namespace'] ?? '',
-                    'path' => $file->getRelativePathname(),
+                    'path' => $file['relative_path'],
                     'view' => $view,
-                    'properties' => $publicProps,
+                    'properties' => $properties,
                     'computed' => $computeds,
-                    'emits' => array_values(array_unique($emits)),
-                    'listens' => $listens,
-                    'methods' => array_map(fn($m) => $m['name'], $parsed['methods']),
+                    'listeners' => $listeners,
+                    'emits' => $emits,
+                    'traits' => $parsed['traits'] ?? [],
+                    'interfaces' => $parsed['interfaces'] ?? [],
+                    'methods' => array_map(fn($m) => $m['name'], $parsed['methods'] ?? []),
+                    'is_full_page' => $view !== null,
                 ];
             }
         }

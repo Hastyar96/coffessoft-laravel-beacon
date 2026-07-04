@@ -7,7 +7,8 @@ namespace Coffesoft\LaravelBeacon\Scanner;
 use Coffesoft\LaravelBeacon\Reader\FileReader;
 
 /**
- * Scans app/Repositories and extracts repository pattern metadata.
+ * Scans Repository classes.
+ * ONLY uses static source code parsing - no class instantiation, no autoloading.
  */
 class RepositoryScanner
 {
@@ -20,24 +21,30 @@ class RepositoryScanner
         $items = [];
 
         foreach ($files as $file) {
-            $contents = $this->reader->read($file->getPathname());
+            $contents = $this->reader->read($file['pathname']);
+            if ($contents === '') continue;
             $name = $this->reader->extractClassName($contents);
             if ($name === null) continue;
 
-            $ns = $this->reader->extractNamespace($contents) ?? 'App\\Repositories';
-            $methods = $this->reader->extractPublicMethods($contents);
             $uses = $this->reader->extractUses($contents);
-            $deps = $this->reader->extractConstructorParams($contents);
-            $isInterface = str_contains($file->getFilename(), 'Interface');
+            $methods = $this->reader->extractPublicMethods($contents);
+
+            $model = '';
+            foreach ($uses as $u) {
+                if (str_contains($u, '\\Models\\')) {
+                    $parts = explode('\\', $u);
+                    $model = end($parts);
+                    break;
+                }
+            }
 
             $items[] = [
                 'name' => $name,
-                'namespace' => $ns,
-                'path' => $file->getRelativePathname(),
-                'type' => $isInterface ? 'interface' : 'implementation',
+                'namespace' => $this->reader->extractNamespace($contents) ?? 'App\\Repositories',
+                'path' => $file['relative_path'],
+                'model' => $model,
                 'methods' => $methods,
-                'dependencies' => $deps,
-                'referenced_models' => array_values(array_filter($uses, fn($u) => str_contains($u, '\\Models\\'))),
+                'method_count' => count($methods),
             ];
         }
 

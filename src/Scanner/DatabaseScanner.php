@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Coffesoft\LaravelBeacon\Scanner;
 
-use DirectoryIterator;
+use FilesystemIterator;
 
 /**
  * Scans database/migrations to extract detailed schema information:
  * columns, foreign keys, indexes, pivot tables, timestamps, soft deletes.
+ * ONLY uses static source code parsing - no class instantiation, no autoloading.
  */
 class DatabaseScanner
 {
@@ -41,14 +42,20 @@ class DatabaseScanner
         ];
     }
 
+    /**
+     * @return array<int, array<string, string>>
+     */
     private function getPhpFiles(string $path): array
     {
         $files = [];
         try {
-            $iterator = new \FilesystemIterator($path, \FilesystemIterator::SKIP_DOTS);
+            $iterator = new FilesystemIterator($path, FilesystemIterator::SKIP_DOTS);
             foreach ($iterator as $file) {
                 if ($file->isFile() && $file->getExtension() === 'php') {
-                    $files[] = $file;
+                    $files[] = [
+                        'pathname' => $file->getPathname(),
+                        'filename' => $file->getFilename(),
+                    ];
                 }
             }
         } catch (\Throwable) {
@@ -58,7 +65,7 @@ class DatabaseScanner
     }
 
     /**
-     * @param array<int, \SplFileInfo> $files
+     * @param array<int, array<string, string>> $files
      * @return array<string, mixed>
      */
     private function parseMigrations(array $files): array
@@ -70,11 +77,10 @@ class DatabaseScanner
         $hasSoftDeletes = false;
 
         foreach ($files as $file) {
-            if ($file->getExtension() !== 'php') {
+            $contents = file_get_contents($file['pathname']);
+            if ($contents === false) {
                 continue;
             }
-
-            $contents = $file->getContents();
 
             // Detect table creation
             $tableName = $this->detectTableName($contents);

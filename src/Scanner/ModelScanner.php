@@ -38,10 +38,10 @@ class ModelScanner
         $files = $this->getPhpFiles($path);
         $items = [];
 
-        foreach ($files as $entry) {
-            [$fileInfo, $relativePath] = $entry;
+        foreach ($files as $file) {
+            $relativePath = $file['relative_path'];
 
-            $contents = file_get_contents($fileInfo->getPathname());
+            $contents = file_get_contents($file['pathname']);
             if ($contents === false) {
                 continue;
             }
@@ -366,8 +366,13 @@ class ModelScanner
             );
             foreach ($iterator as $file) {
                 if ($file->isFile() && $file->getExtension() === 'php') {
-                    $relativePath = str_replace($basePath . '/', '', $file->getPathname());
-                    $result[] = [$file, $relativePath];
+                    $pathname = $file->getPathname();
+                    $relativePath = str_replace($basePath . '/', '', $pathname);
+                    $result[] = [
+                        'pathname' => $pathname,
+                        'relative_path' => $relativePath,
+                        'filename' => $file->getFilename(),
+                    ];
                 }
             }
         } catch (\Throwable) {

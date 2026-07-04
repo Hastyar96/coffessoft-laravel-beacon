@@ -6,6 +6,10 @@ namespace Coffesoft\LaravelBeacon\Scanner;
 
 use Coffesoft\LaravelBeacon\Reader\FileReader;
 
+/**
+ * Scans policy classes.
+ * ONLY uses static source code parsing - no class instantiation, no autoloading.
+ */
 class PolicyScanner
 {
     public function __construct(private readonly FileReader $reader) {}
@@ -17,7 +21,8 @@ class PolicyScanner
         $items = [];
 
         foreach ($files as $file) {
-            $contents = $this->reader->read($file->getPathname());
+            $contents = $this->reader->read($file['pathname']);
+            if ($contents === '') continue;
             $name = $this->reader->extractClassName($contents);
             if ($name === null) continue;
 
@@ -36,7 +41,7 @@ class PolicyScanner
             $items[] = [
                 'name' => $name,
                 'namespace' => $this->reader->extractNamespace($contents) ?? 'App\\Policies',
-                'path' => $file->getRelativePathname(),
+                'path' => $file['relative_path'],
                 'model' => $model,
                 'abilities' => $methods,
             ];

@@ -9,6 +9,7 @@ use Coffesoft\LaravelBeacon\Reader\PhpParser;
 
 /**
  * Scans API Resources, Controllers, Sanctum/Passport/JWT authentication.
+ * ONLY uses static source code parsing - no class instantiation, no autoloading.
  */
 class APIScanner
 {
@@ -43,7 +44,8 @@ class APIScanner
         foreach ($paths as $path) {
             if (!is_dir($path)) continue;
             foreach ($this->reader->getPhpFiles($path) as $file) {
-                $contents = $file->getContents();
+                $contents = $this->reader->read($file['pathname']);
+                if ($contents === '') continue;
                 $parsed = $this->parser->parse($contents);
                 if ($parsed['class_name'] === null) continue;
 
@@ -53,11 +55,10 @@ class APIScanner
                 $resources[] = [
                     'name' => $parsed['class_name'],
                     'namespace' => $parsed['namespace'] ?? '',
-                    'path' => $file->getRelativePathname(),
+                    'path' => $file['relative_path'],
                     'type' => $isCollection ? 'collection' : 'resource',
                     'parent' => $parsed['parent'],
                     'methods' => array_map(fn($m) => $m['name'], $parsed['methods']),
-                    'parent' => $parsed['parent'],
                 ];
             }
         }
@@ -74,7 +75,7 @@ class APIScanner
             'providers' => [],
         ];
 
-        // Check composer.json for auth packages
+        // Check composer.json for auth packages (static file read)
         $composerPath = base_path('composer.json');
         if (file_exists($composerPath)) {
             $composer = json_decode(file_get_contents($composerPath), true);
@@ -88,7 +89,7 @@ class APIScanner
                 $auth['jwt'] = isset($allDeps['tymon/jwt-auth'])
                     || isset($allDeps['php-open-source-saver/jwt-auth']);
 
-                // Detect auth providers from config
+                // Detect auth providers from config file (static read)
                 $configPath = config_path('auth.php');
                 if (file_exists($configPath)) {
                     $config = file_get_contents($configPath);
@@ -99,15 +100,12 @@ class APIScanner
             }
         }
 
-        // Check for Sanctum HasApiTokens trait usage in User model
+        // Check for Sanctum HasApiTokens trait usage in User model (static text scan)
         $userModelPath = app_path('Models/User.php');
         if (file_exists($userModelPath)) {
             $userContents = file_get_contents($userModelPath);
-            if (str_contains($userContents, 'HasApiTokens')) {
+            if ($userContents !== false && str_contains($userContents, 'HasApiTokens')) {
                 $auth['sanctum'] = true;
-            }
-            if (str_contains($userContents, 'HasApiTokens') && !$auth['sanctum']) {
-                // Passport also uses HasApiTokens in some versions
             }
         }
 
@@ -125,14 +123,15 @@ class APIScanner
         foreach ($apiPaths as $path) {
             if (!is_dir($path)) continue;
             foreach ($this->reader->getPhpFiles($path) as $file) {
-                $contents = $file->getContents();
+                $contents = $this->reader->read($file['pathname']);
+                if ($contents === '') continue;
                 $parsed = $this->parser->parse($contents);
                 if ($parsed['class_name'] === null) continue;
 
                 $controllers[] = [
                     'name' => $parsed['class_name'],
                     'namespace' => $parsed['namespace'] ?? '',
-                    'path' => $file->getRelativePathname(),
+                    'path' => $file['relative_path'],
                     'methods' => array_map(fn($m) => $m['name'], $parsed['methods']),
                     'extend' => $parsed['parent'],
                 ];

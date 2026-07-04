@@ -43,7 +43,8 @@ class TraitScanner
         foreach ($traitDirs as $dir) {
             if (!is_dir($dir)) continue;
             foreach ($this->reader->getPhpFiles($dir) as $file) {
-                $contents = $file->getContents();
+                $contents = $this->reader->read($file['pathname']);
+                if ($contents === '') continue;
                 $parsed = $this->parser->parse($contents);
 
                 if ($parsed['class_name'] === null) continue;
@@ -54,7 +55,7 @@ class TraitScanner
                 $traits[] = [
                     'name' => $parsed['class_name'],
                     'namespace' => $parsed['namespace'] ?? '',
-                    'path' => $file->getRelativePathname(),
+                    'path' => $file['relative_path'],
                     'is_trait' => (bool)$isTrait,
                     'methods' => array_map(fn($m) => $m['name'], $parsed['methods']),
                     'properties' => array_map(fn($p) => $p['name'], $parsed['properties']),
@@ -86,7 +87,8 @@ class TraitScanner
         foreach ($scanDirs as $dir) {
             if (!is_dir($dir)) continue;
             foreach ($this->reader->getPhpFiles($dir) as $file) {
-                $contents = $file->getContents();
+                $contents = $this->reader->read($file['pathname']);
+                if ($contents === '') continue;
                 $parsed = $this->parser->parse($contents);
 
                 if ($parsed['class_name'] === null) continue;
@@ -104,7 +106,7 @@ class TraitScanner
                         $usage[$shortName][] = [
                             'class' => $parsed['class_name'],
                             'namespace' => $parsed['namespace'],
-                            'path' => $file->getRelativePathname(),
+                            'path' => $file['relative_path'],
                         ];
                     }
                 }

@@ -8,7 +8,8 @@ use Coffesoft\LaravelBeacon\Reader\FileReader;
 use Coffesoft\LaravelBeacon\Reader\PhpParser;
 
 /**
- * Scans app/Notifications and detects notification channels and structure.
+ * Scans Notification classes.
+ * ONLY uses static source code parsing - no class instantiation, no autoloading.
  */
 class NotificationScanner
 {
@@ -20,65 +21,34 @@ class NotificationScanner
     public function scan(): array
     {
         $path = app_path('Notifications');
-        if (!is_dir($path)) {
-            return ['notifications' => ['count' => 0, 'items' => []]];
-        }
-
+        $files = $this->reader->getPhpFiles($path);
         $items = [];
-        foreach ($this->reader->getPhpFiles($path) as $file) {
-            $contents = $this->reader->read($file->getPathname());
+
+        foreach ($files as $file) {
+            $contents = $this->reader->read($file['pathname']);
+            if ($contents === '') continue;
             $parsed = $this->parser->parse($contents);
             if ($parsed['class_name'] === null) continue;
 
-            $channels = $this->detectChannels($contents);
-            $methods = array_map(fn($m) => $m['name'], $parsed['methods']);
+            $channels = [];
+            if (preg_match('/public\s+function\s+via\s*\(\s*/', $contents)) {
+                if (preg_match('/function\s+via\s*\([^)]*\)\s*\{(.*?)\}/s', $contents, $m)) {
+                    if (preg_match_all('/[\'"]([^\'"]channel[\'"]|mail|database|broadcast|nexmo|vonage|slack)[\'"]/', $m[1], $channelMatches)) {
+                        $channels = $channelMatches[1];
+                    }
+                }
+            }
 
             $items[] = [
                 'name' => $parsed['class_name'],
-                'namespace' => $parsed['namespace'] ?? 'App\\Notifications',
-                'path' => $file->getRelativePathname(),
+                'namespace' => $parsed['namespace'] ?? '',
+                'path' => $file['relative_path'],
                 'channels' => $channels,
-                'methods' => $methods,
-                'uses' => $parsed['uses'],
-                'has_mail' => in_array('mail', $channels),
-                'has_database' => in_array('database', $channels),
-                'has_broadcast' => in_array('broadcast', $channels),
-                'has_sms' => in_array('nexmo', $channels) || in_array('vonage', $channels),
-                'has_slack' => in_array('slack', $channels),
+                'methods' => array_map(fn($m) => $m['name'], $parsed['methods'] ?? []),
+                'traits' => $parsed['traits'] ?? [],
             ];
         }
 
-        return [
-            'notifications' => [
-                'count' => count($items),
-                'items' => $items,
-            ],
-        ];
-    }
-
-    private function detectChannels(string $contents): array
-    {
-        $channels = [];
-
-        // Detect via method names
-        if (str_contains($contents, 'function via')) {
-            if (preg_match('/function\s+via\s*\([^)]*\)\s*\{(.*?)\}/s', $contents, $m)) {
-                $body = $m[1];
-                if (str_contains($body, 'mail')) $channels[] = 'mail';
-                if (str_contains($body, 'database')) $channels[] = 'database';
-                if (str_contains($body, 'broadcast')) $channels[] = 'broadcast';
-                if (str_contains($body, 'nexmo') || str_contains($body, 'vonage')) $channels[] = 'nexmo';
-                if (str_contains($body, 'slack')) $channels[] = 'slack';
-            }
-        }
-
-        // Detect via method presence
-        if (str_contains($contents, 'function toMail')) $channels[] = 'mail';
-        if (str_contains($contents, 'function toArray')) $channels[] = 'database';
-        if (str_contains($contents, 'function toBroadcast')) $channels[] = 'broadcast';
-        if (str_contains($contents, 'function toNexmo') || str_contains($contents, 'function toVonage')) $channels[] = 'nexmo';
-        if (str_contains($contents, 'function toSlack')) $channels[] = 'slack';
-
-        return array_values(array_unique($channels));
+        return ['notifications' => ['count' => count($items), 'items' => $items]];
     }
 }

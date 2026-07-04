@@ -6,6 +6,10 @@ namespace Coffesoft\LaravelBeacon\Scanner;
 
 use Coffesoft\LaravelBeacon\Reader\FileReader;
 
+/**
+ * Scans Form Request classes for rules, authorize, dependencies.
+ * ONLY uses static source code parsing - no class instantiation, no autoloading.
+ */
 class FormRequestScanner
 {
     public function __construct(private readonly FileReader $reader) {}
@@ -17,45 +21,30 @@ class FormRequestScanner
         $items = [];
 
         foreach ($files as $file) {
-            $contents = $this->reader->read($file->getPathname());
+            $contents = $this->reader->read($file['pathname']);
+            if ($contents === '') continue;
             $name = $this->reader->extractClassName($contents);
             if ($name === null) continue;
+
+            $includesAuthorize = str_contains($contents, 'public function authorize');
+            $includesRules = str_contains($contents, 'public function rules');
+
+            $rules = null;
+            if (preg_match('/function\s+rules\s*\(\s*\)\s*\{(.*?)\}/s', $contents, $m)) {
+                if (preg_match_all('/[\'"]([^\'"]+)[\'"]\s*=>\s*[\'"]([^\'"]+)[\'"]/', $m[1], $ruleMatches)) {
+                    $rules = array_combine($ruleMatches[1], $ruleMatches[2]);
+                }
+            }
 
             $items[] = [
                 'name' => $name,
                 'namespace' => $this->reader->extractNamespace($contents) ?? 'App\\Http\\Requests',
-                'path' => $file->getRelativePathname(),
-                'rules' => $this->extractRules($contents),
-                'authorize' => $this->hasAuthorize($contents),
-                'messages' => $this->hasMessages($contents),
+                'path' => $file['relative_path'],
+                'has_authorize' => $includesAuthorize,
+                'has_rules' => $includesRules,
             ];
         }
 
         return ['form_requests' => ['count' => count($items), 'items' => $items]];
-    }
-
-    private function extractRules(string $contents): array
-    {
-        $rules = [];
-        if (preg_match('/function\s+rules?\s*\([^)]*\)\s*:\s*array\s*\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/s', $contents, $m)) {
-            $body = $m[1];
-            if (preg_match_all('/[\'"]([\w_]+)[\'"]\s*=>\s*[\'"]([^\'"]+)[\'"]/', $body, $matches)) {
-                foreach ($matches[1] as $i => $field) {
-                    $rules[] = ['field' => $field, 'rules' => $matches[2][$i]];
-                }
-            }
-        }
-        return $rules;
-    }
-
-    private function hasAuthorize(string $contents): bool
-    {
-        preg_match('/function\s+authorize\s*\(/', $contents, $m);
-        return !empty($m);
-    }
-
-    private function hasMessages(string $contents): bool
-    {
-        return (bool) preg_match('/function\s+messages?\s*\(/', $contents);
     }
 }

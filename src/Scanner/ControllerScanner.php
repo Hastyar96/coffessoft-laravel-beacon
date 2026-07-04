@@ -17,6 +17,7 @@ use RecursiveIteratorIterator;
  * services, events, jobs, notifications, views, redirects, transactions.
  *
  * No naming-convention-based inference. Only proven extraction.
+ * ONLY uses static source code parsing - no class instantiation, no autoloading.
  */
 class ControllerScanner
 {
@@ -41,10 +42,10 @@ class ControllerScanner
         $files = $this->getPhpFiles($path);
         $items = [];
 
-        foreach ($files as $entry) {
-            [$fileInfo, $relativePath] = $entry;
+        foreach ($files as $file) {
+            $relativePath = $file['relative_path'];
 
-            $contents = file_get_contents($fileInfo->getPathname());
+            $contents = file_get_contents($file['pathname']);
             if ($contents === false) {
                 continue;
             }
@@ -197,9 +198,6 @@ class ControllerScanner
         return $public;
     }
 
-    /**
-     * Extract constructor dependencies from type hints (proven).
-     */
     private function extractConstructorDependencies(string $contents): array
     {
         $deps = [];
@@ -213,7 +211,6 @@ class ControllerScanner
                 && $tokens[$i + 2]?->id === T_STRING
                 && $tokens[$i + 2]->text === '__construct') {
 
-                // Find parameter list
                 for ($j = $i; $j < $count; $j++) {
                     if ($tokens[$j]->text === '(') {
                         $params = [];
@@ -224,7 +221,6 @@ class ControllerScanner
                             if ($depth > 0) $params[] = $tokens[$k];
                         }
 
-                        // Extract type hints
                         for ($p = 0; $p < count($params); $p++) {
                             if ($params[$p]->id === T_VARIABLE) {
                                 $typeHint = null;
@@ -283,7 +279,6 @@ class ControllerScanner
     {
         $policies = [];
 
-        // $this->authorize('ability', $model)
         if (preg_match_all('/\$this->authorize\([\'"]([^\'"]+)[\'"]\s*,/', $contents, $matches, PREG_SET_ORDER)) {
             foreach ($matches as $match) {
                 $policies[] = [
@@ -294,7 +289,6 @@ class ControllerScanner
             }
         }
 
-        // Gate::authorize() / Gate::allows() / Gate::denies()
         if (preg_match_all('/(?:\\\\?Gate)::(authorize|allows|denies|check|any|none)\([\'"]([^\'"]+)[\'"]/', $contents, $matches, PREG_SET_ORDER)) {
             foreach ($matches as $match) {
                 $policies[] = [
@@ -313,7 +307,6 @@ class ControllerScanner
     {
         $validations = [];
 
-        // Inline validation
         if (str_contains($contents, '$this->validate(')) {
             $validations[] = [
                 'type' => 'inline',
@@ -321,7 +314,6 @@ class ControllerScanner
             ];
         }
 
-        // FormRequest type hints in method parameters
         if (preg_match_all('/(\w+Request)\s+\$/', $contents, $matches)) {
             foreach ($matches[1] as $req) {
                 $validations[] = [
@@ -334,9 +326,6 @@ class ControllerScanner
         return $validations;
     }
 
-    /**
-     * Aggregate dependencies across all analyzed methods.
-     */
     private function aggregateDependencies(array $methodAnalyses): array
     {
         $models = [];
@@ -464,8 +453,13 @@ class ControllerScanner
             );
             foreach ($iterator as $file) {
                 if ($file->isFile() && $file->getExtension() === 'php') {
-                    $relativePath = str_replace($basePath . '/', '', $file->getPathname());
-                    $result[] = [$file, $relativePath];
+                    $pathname = $file->getPathname();
+                    $relativePath = str_replace($basePath . '/', '', $pathname);
+                    $result[] = [
+                        'pathname' => $pathname,
+                        'relative_path' => $relativePath,
+                        'filename' => $file->getFilename(),
+                    ];
                 }
             }
         } catch (\Throwable) {
@@ -521,11 +515,6 @@ class ControllerScanner
         return substr_count(substr($contents, 0, $pos), "\n") + 1;
     }
 
-    /**
-     * Tokenize PHP code.
-     *
-     * @return array|\PhpToken[]
-     */
     private function tokenize(string $contents): array
     {
         try {

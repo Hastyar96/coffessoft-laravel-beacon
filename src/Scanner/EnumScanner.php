@@ -43,7 +43,8 @@ class EnumScanner
         foreach ($paths as $path) {
             if (!is_dir($path)) continue;
             foreach ($this->reader->getPhpFiles($path) as $file) {
-                $contents = $file->getContents();
+                $contents = $this->reader->read($file['pathname']);
+                if ($contents === '') continue;
                 $parsed = $this->parser->parse($contents);
                 if ($parsed['class_name'] === null) continue;
 
@@ -62,7 +63,7 @@ class EnumScanner
                 $enums[] = [
                     'name' => $parsed['class_name'],
                     'namespace' => $parsed['namespace'] ?? '',
-                    'path' => $file->getRelativePathname(),
+                    'path' => $file['relative_path'],
                     'backed_type' => $backedBy,
                     'cases' => $cases,
                 ];
@@ -116,7 +117,8 @@ class EnumScanner
         foreach ($searchDirs as $dir) {
             if (!is_dir($dir)) continue;
             foreach ($this->reader->getPhpFiles($dir) as $file) {
-                $contents = $file->getContents();
+                $contents = $this->reader->read($file['pathname']);
+                if ($contents === '') continue;
                 $parsed = $this->parser->parse($contents);
                 if ($parsed['class_name'] === null) continue;
 
@@ -124,8 +126,8 @@ class EnumScanner
                 foreach ($enumNames as $enumName) {
                     if (str_contains($contents, $enumName)) {
                         // Verify it's actually a usage, not the definition
-                        $isDefinition = str_contains($file->getPathname(), "/Enums/$enumName.php") ||
-                                        str_contains($file->getPathname(), "/Enum/$enumName.php");
+                        $isDefinition = str_contains($file['pathname'], "/Enums/$enumName.php") ||
+                                        str_contains($file['pathname'], "/Enum/$enumName.php");
                         if (!$isDefinition) {
                             $used[] = $enumName;
                         }
@@ -136,7 +138,7 @@ class EnumScanner
                     $usage[] = [
                         'class' => $parsed['class_name'],
                         'namespace' => $parsed['namespace'],
-                        'path' => $file->getRelativePathname(),
+                        'path' => $file['relative_path'],
                         'uses_enums' => $used,
                     ];
                 }

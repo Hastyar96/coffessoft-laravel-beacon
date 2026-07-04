@@ -10,16 +10,8 @@ use Coffesoft\LaravelBeacon\Reader\PhpParser;
 /**
  * Enhanced Service Scanner v2.1
  *
- * Detects services in multiple directories:
- * - app/Services
- * - Modules module services
- * - Domain services
- * - Actions
- * - Use Cases
- * - Application Services
- *
- * Extracts dependencies, models, repositories, jobs, events,
- * notifications, public methods, and responsibilities.
+ * Detects services by scanning source files only.
+ * No application class instantiation, no autoloading.
  */
 class ServiceScanner
 {
@@ -40,7 +32,8 @@ class ServiceScanner
             $allFiles[$path] = $files;
 
             foreach ($files as $file) {
-                $contents = $this->reader->read($file->getPathname());
+                $contents = $this->reader->read($file['pathname']);
+                if ($contents === '') continue;
                 $parsed = $this->parser->parse($contents);
                 $name = $parsed['class_name'] ?? $this->reader->extractClassName($contents);
                 if ($name === null) continue;
@@ -68,7 +61,7 @@ class ServiceScanner
                 $items[] = [
                     'name' => $name,
                     'namespace' => $ns,
-                    'path' => $file->getRelativePathname(),
+                    'path' => $file['relative_path'],
                     'type' => $type,
                     'dependencies' => $deps,
                     'methods' => $methodNames,

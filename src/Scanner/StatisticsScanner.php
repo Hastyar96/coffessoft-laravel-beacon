@@ -259,7 +259,8 @@ class StatisticsScanner
         $totalFiles = 0;
 
         foreach ($this->reader->getPhpFiles($ctrlPath) as $file) {
-            $contents = $file->getContents();
+            $contents = $this->reader->read($file['pathname']);
+            if ($contents === '') continue;
             preg_match_all('/public\s+function\s+(\w+)\s*\(/', $contents, $matches);
             $methods = array_filter($matches[1], fn($m) => !in_array($m, ['__construct']));
             $totalMethods += count($methods);
@@ -278,7 +279,8 @@ class StatisticsScanner
         $totalFiles = 0;
 
         foreach ($this->reader->getPhpFiles($modelPath) as $file) {
-            $contents = $file->getContents();
+            $contents = $this->reader->read($file['pathname']);
+            if ($contents === '') continue;
             preg_match_all('/public\s+function\s+(\w+)\s*\(/', $contents, $matches);
             $methods = array_filter($matches[1], fn($m) => !in_array($m, ['__construct']));
             $totalMethods += count($methods);
@@ -300,11 +302,12 @@ class StatisticsScanner
         foreach ($scanDirs as $dir) {
             if (!is_dir($dir)) continue;
             foreach ($this->reader->getPhpFiles($dir) as $file) {
-                $contents = $file->getContents();
+                $contents = $this->reader->read($file['pathname']);
+                if ($contents === '') continue;
                 $lines = substr_count($contents, "\n") + 1;
                 if ($lines > 100) {
                     $classes[] = [
-                        'file' => $file->getRelativePathname(),
+                        'file' => $file['relative_path'],
                         'lines' => $lines,
                     ];
                 }

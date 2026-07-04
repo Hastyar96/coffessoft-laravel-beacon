@@ -128,32 +128,81 @@ class ContextBuilder
             'cache_stats' => $this->scanCache->getStats(),
         ]);
 
-        // Phase 1: Scan all project components
-        $context->merge($this->modelScanner->scan());
-        $context->merge($this->controllerScanner->scan());
-        $context->merge($this->routeScanner->scan());
-        $context->merge($this->migrationScanner->scan());
-        $context->merge($this->databaseScanner->scan());
-        $context->merge($this->statisticsScanner->scan());
-        $context->merge($this->configScanner->scan());
-        $context->merge($this->serviceScanner->scan());
-        $context->merge($this->repositoryScanner->scan());
-        $context->merge($this->formRequestScanner->scan());
-        $context->merge($this->middlewareScanner->scan());
-        $context->merge($this->policyScanner->scan());
-        $context->merge($this->eventScanner->scan());
-        $context->merge($this->jobScanner->scan());
-        $context->merge($this->notificationScanner->scan());
-        $context->merge($this->mailScanner->scan());
-        $context->merge($this->traitScanner->scan());
-        $context->merge($this->enumScanner->scan());
-        $context->merge($this->helperScanner->scan());
-        $context->merge($this->livewireScanner->scan());
-        $context->merge($this->bladeScanner->scan());
-        $context->merge($this->apiScanner->scan());
-        $context->merge($this->queueScanner->scan());
-        $context->merge($this->storageScanner->scan());
-        $context->merge($this->packageScanner->scan());
+        // Phase 1: Scan all project components (each wrapped in try/catch for isolation)
+        $scanResult = $this->safeScan(fn() => $this->modelScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->controllerScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->routeScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->migrationScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->databaseScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->statisticsScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->configScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->serviceScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->repositoryScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->formRequestScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->middlewareScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->policyScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->eventScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->jobScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->notificationScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->mailScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->traitScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->enumScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->helperScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->livewireScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->bladeScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->apiScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->queueScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->storageScanner->scan());
+        $context->merge($scanResult);
+
+        $scanResult = $this->safeScan(fn() => $this->packageScanner->scan());
+        $context->merge($scanResult);
 
         // Phase 2: Module detection
         $modules = $this->moduleDetector->detect($context->all());
@@ -251,6 +300,20 @@ class ContextBuilder
         }
 
         $this->scanCache->recordScan($files);
+    }
+
+    private function safeScan(callable $scanner): array
+    {
+        try {
+            $result = $scanner();
+            return is_array($result) ? $result : [];
+        } catch (\Error $e) {
+            // Class not found errors (e.g. HasApiTokens) should be caught here
+            // Since they are PHP \Error, not \Exception
+            return [];
+        } catch (\Throwable $e) {
+            return [];
+        }
     }
 
     private function getLaravelVersion(): string

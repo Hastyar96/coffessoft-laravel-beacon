@@ -8,7 +8,8 @@ use Coffesoft\LaravelBeacon\Reader\FileReader;
 use Coffesoft\LaravelBeacon\Reader\PhpParser;
 
 /**
- * Scans app/Events and detects events, listeners, dispatchers, and subscribers.
+ * Scans for Event classes, listeners, and dispatch points.
+ * ONLY uses static source code parsing - no class instantiation, no autoloading.
  */
 class EventScanner
 {
@@ -19,177 +20,143 @@ class EventScanner
 
     public function scan(): array
     {
-        $events = $this->scanEvents();
-        $listeners = $this->scanListeners();
-        $subscribers = $this->scanSubscribers();
-        $dispatchers = $this->scanDispatchers();
+        $events = $this->findEventDefinitions();
+        $listeners = $this->findListeners();
+        $dispatchPoints = $this->findDispatchPoints();
 
         return [
             'events' => [
                 'count' => count($events),
-                'items' => $events,
+                'definitions' => $events,
                 'listeners' => $listeners,
-                'subscribers' => $subscribers,
-                'dispatchers' => $dispatchers,
+                'dispatch_points' => $dispatchPoints,
             ],
         ];
     }
 
-    private function scanEvents(): array
+    private function findEventDefinitions(): array
     {
         $path = app_path('Events');
         if (!is_dir($path)) return [];
 
-        $items = [];
+        $events = [];
+
         foreach ($this->reader->getPhpFiles($path) as $file) {
-            $contents = $this->reader->read($file->getPathname());
+            $contents = $this->reader->read($file['pathname']);
+            if ($contents === '') continue;
             $parsed = $this->parser->parse($contents);
             if ($parsed['class_name'] === null) continue;
 
-            $items[] = [
+            $shouldDispatch = str_contains($contents, 'ShouldDispatch') || str_contains($contents, 'Dispatchable');
+
+            $events[] = [
                 'name' => $parsed['class_name'],
-                'namespace' => $parsed['namespace'] ?? 'App\\Events',
-                'path' => $file->getRelativePathname(),
-                'properties' => $parsed['properties'],
-                'methods' => array_map(fn($m) => $m['name'], $parsed['methods']),
-                'implements' => $parsed['interfaces'],
-                'should_broadcast' => $this->implementsBroadcast($parsed['interfaces']),
-                'should_queue' => $this->shouldQueue($contents),
+                'namespace' => $parsed['namespace'] ?? '',
+                'path' => $file['relative_path'],
+                'should_dispatch' => $shouldDispatch,
+                'traits' => $parsed['traits'] ?? [],
+                'properties' => array_map(fn($p) => $p['name'], $parsed['properties'] ?? []),
+                'constructor_deps' => $this->extractConstructorDeps($parsed['methods'] ?? []),
             ];
         }
 
-        return $items;
+        return $events;
     }
 
-    private function scanListeners(): array
+    private function findListeners(): array
     {
         $path = app_path('Listeners');
         if (!is_dir($path)) return [];
 
-        $items = [];
+        $listeners = [];
+
         foreach ($this->reader->getPhpFiles($path) as $file) {
-            $contents = $this->reader->read($file->getPathname());
+            $contents = $this->reader->read($file['pathname']);
+            if ($contents === '') continue;
             $parsed = $this->parser->parse($contents);
             if ($parsed['class_name'] === null) continue;
 
-            $name = $parsed['class_name'];
-            $uses = $parsed['uses'];
-
-            // Detect which event this listener handles from handle() method signature
-            $handlesEvent = null;
-            foreach ($parsed['methods'] as $method) {
-                if ($method['name'] === 'handle') {
-                    foreach ($method['params'] as $param) {
-                        if ($param['type'] && str_contains($param['type'], '\\')) {
-                            $parts = explode('\\', $param['type']);
-                            $handlesEvent = end($parts);
-                        }
-                    }
+            $handleMethod = null;
+            foreach ($parsed['methods'] ?? [] as $m) {
+                if ($m['name'] === 'handle') {
+                    $handleMethod = $m;
                     break;
                 }
             }
 
-            $items[] = [
-                'name' => $name,
-                'namespace' => $parsed['namespace'] ?? 'App\\Listeners',
-                'path' => $file->getRelativePathname(),
-                'handles' => $handlesEvent,
-                'queued' => $this->implementsInterface($contents, 'ShouldQueue'),
-                'methods' => array_map(fn($m) => $m['name'], $parsed['methods']),
+            $listener = [
+                'name' => $parsed['class_name'],
+                'namespace' => $parsed['namespace'] ?? '',
+                'path' => $file['relative_path'],
+                'methods' => array_map(fn($m) => $m['name'], $parsed['methods'] ?? []),
+                'traits' => $parsed['traits'] ?? [],
             ];
-        }
 
-        return $items;
-    }
-
-    private function scanSubscribers(): array
-    {
-        $path = app_path('Listeners');
-        if (!is_dir($path)) return [];
-
-        $items = [];
-        foreach ($this->reader->getPhpFiles($path) as $file) {
-            $contents = $this->reader->read($file->getPathname());
-            if (str_contains($contents, 'subscribe(')) {
-                $parsed = $this->parser->parse($contents);
-                if ($parsed['class_name'] === null) continue;
-
-                $items[] = [
-                    'name' => $parsed['class_name'],
-                    'namespace' => $parsed['namespace'] ?? 'App\\Listeners',
-                    'path' => $file->getRelativePathname(),
-                    'methods' => array_map(fn($m) => $m['name'], $parsed['methods']),
-                ];
+            if ($handleMethod && !empty($handleMethod['params'])) {
+                $firstParam = $handleMethod['params'][0];
+                $listener['listens_to'] = $firstParam['type'] ?? null;
             }
+
+            $listeners[] = $listener;
         }
 
-        return $items;
+        return $listeners;
     }
 
-    private function scanDispatchers(): array
+    private function findDispatchPoints(): array
     {
-        // Scan controllers and services for event dispatch calls
-        $dispatchers = [];
-        $paths = [
+        $dispatchPoints = [];
+        $scanDirs = [
             app_path('Http/Controllers'),
             app_path('Services'),
+            app_path('Console/Commands'),
         ];
 
-        foreach ($paths as $path) {
-            if (!is_dir($path)) continue;
-            foreach ($this->reader->getPhpFiles($path) as $file) {
-                $contents = $this->reader->read($file->getPathname());
+        foreach ($scanDirs as $dir) {
+            if (!is_dir($dir)) continue;
+            foreach ($this->reader->getPhpFiles($dir) as $file) {
+                $contents = $this->reader->read($file['pathname']);
+                if ($contents === '') continue;
                 $parsed = $this->parser->parse($contents);
                 if ($parsed['class_name'] === null) continue;
 
-                // Detect dispatch() calls
-                $events = [];
-                if (preg_match_all('/\bevent\s*\(\s*new\s+(\w+Event)/', $contents, $m)) {
-                    foreach ($m[1] as $ev) {
-                        if (!in_array($ev, $events)) $events[] = $ev;
-                    }
-                }
-                if (preg_match_all('/\bdispatch\s*\(\s*new\s+(\w+Event)/', $contents, $m)) {
-                    foreach ($m[1] as $ev) {
-                        if (!in_array($ev, $events)) $events[] = $ev;
-                    }
-                }
-                if (preg_match_all('/\b([\w]+Event)::dispatch/', $contents, $m)) {
-                    foreach ($m[1] as $ev) {
-                        if (!in_array($ev, $events)) $events[] = $ev;
+                $dispatches = [];
+
+                // Pattern 1: Event::dispatch()
+                if (preg_match_all('/(\w+Event)::dispatch\(/', $contents, $m)) {
+                    foreach ($m[1] as $event) {
+                        $dispatches[] = ['class' => $event, 'method' => 'static_dispatch', 'line' => 0];
                     }
                 }
 
-                if (!empty($events)) {
-                    $dispatchers[] = [
+                // Pattern 2: event(new EventClass(...))
+                if (preg_match_all('/event\(\s*new\s+(\w+Event)/', $contents, $m)) {
+                    foreach ($m[1] as $event) {
+                        $dispatches[] = ['class' => $event, 'method' => 'helper_event', 'line' => 0];
+                    }
+                }
+
+                if (!empty($dispatches)) {
+                    $dispatchPoints[] = [
                         'class' => $parsed['class_name'],
                         'namespace' => $parsed['namespace'],
-                        'dispatches' => $events,
+                        'path' => $file['relative_path'],
+                        'dispatches' => $dispatches,
                     ];
                 }
             }
         }
 
-        return $dispatchers;
+        return $dispatchPoints;
     }
 
-    private function implementsBroadcast(array $interfaces): bool
+    private function extractConstructorDeps(array $methods): array
     {
-        foreach ($interfaces as $iface) {
-            if (str_contains($iface, 'ShouldBroadcast') || str_contains($iface, 'ShouldBroadcastNow')) {
-                return true;
+        foreach ($methods as $m) {
+            if ($m['name'] === '__construct') {
+                return array_map(fn($p) => $p['type'] ?? 'unknown', $m['params'] ?? []);
             }
         }
-        return false;
-    }
-
-    private function shouldQueue(string $contents): bool
-    {
-        return str_contains($contents, 'ShouldQueue');
-    }
-
-    private function implementsInterface(string $contents, string $interface): bool
-    {
-        return str_contains($contents, $interface);
+        return [];
     }
 }
