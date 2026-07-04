@@ -323,7 +323,6 @@ class DiffEngine
             app_path('Notifications'),
             app_path('Mail'),
             app_path('Console/Commands'),
-            base_path('routes'),
             database_path('migrations'),
         ];
 
@@ -337,10 +336,10 @@ class DiffEngine
             }
         }
 
-        // Also scan route files (non-PHP .php stubs)
+        // Scan route files (non-recursive, top-level .php only)
         $routesDir = base_path('routes');
         if (is_dir($routesDir)) {
-            foreach (new \DirectoryIterator($routesDir) as $file) {
+            foreach (new \FilesystemIterator($routesDir, \FilesystemIterator::SKIP_DOTS) as $file) {
                 if ($file->isFile() && $file->getExtension() === 'php') {
                     $files[] = $file->getPathname();
                 }

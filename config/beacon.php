@@ -50,8 +50,6 @@ return [
         'queue' => true,
         'storage' => true,
         'packages' => true,
-        'commands' => true,
-        'modules' => true,
     ],
 
     /*

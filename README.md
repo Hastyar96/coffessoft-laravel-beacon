@@ -129,7 +129,7 @@ Scanners → Raw Data → Intelligence Engines → Output Files
 Models, Controllers, Routes, Migrations, Database, Config, Services, Repositories, FormRequests, Middleware, Policies, Events, Jobs, Notifications, Mail, Traits, Enums, Helpers, Livewire, Blade, API, Queue, Storage, Packages, Commands
 
 ### Intelligence Engines
-Architecture Detection, Security Analysis, Performance Analysis, Business Rules, Relationship Graph, AI Summaries, Database Intelligence, Route Intelligence, Folder Tree, Module Detection, Workflow Detection, Dependency Graph, Feature Map, Impact Map, AI Context Compression, Entry Points, Developer Onboarding, AI Prompt Pack, Task Context, Diff Engine, Review Engine, Enhanced Statistics, Route Health, Code Fix Engine, AI Refactor Planner, Auto Controller Splitter
+Architecture Detection, Security Analysis, Performance Analysis, Business Rules, Relationship Graph, AI Summaries, Database Intelligence, Route Intelligence, Folder Tree, Module Detection, Workflow Detection, Dependency Graph, Feature Map, Impact Map, AI Context Compression, Entry Points, Developer Onboarding, AI Prompt Pack, Task Context, Diff Engine, Review Engine, Route Health, Code Fix Engine, AI Refactor Planner, Auto Controller Splitter
 
 ---
 
