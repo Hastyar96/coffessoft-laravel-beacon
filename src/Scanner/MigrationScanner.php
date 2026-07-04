@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Coffesoft\LaravelBeacon\Scanner;
 
-use Illuminate\Support\Facades\File;
-
 /**
  * Scans database/migrations and extracts table/schema metadata.
  */
@@ -24,7 +22,7 @@ class MigrationScanner
             return ['migrations' => ['count' => 0, 'items' => []]];
         }
 
-        $files = File::allFiles($path);
+        $files = $this->getPhpFiles($path);
         $items = [];
         $tables = [];
 
@@ -62,6 +60,22 @@ class MigrationScanner
                 'tables' => array_unique($tables),
             ],
         ];
+    }
+
+    private function getPhpFiles(string $path): array
+    {
+        $files = [];
+        try {
+            $iterator = new \FilesystemIterator($path, \FilesystemIterator::SKIP_DOTS);
+            foreach ($iterator as $file) {
+                if ($file->isFile() && $file->getExtension() === 'php') {
+                    $files[] = $file;
+                }
+            }
+        } catch (\Throwable) {
+            return [];
+        }
+        return $files;
     }
 
     private function extractClass(string $contents): ?string

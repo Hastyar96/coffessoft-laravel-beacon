@@ -34,7 +34,7 @@ class BeaconScanCommand extends Command
         $this->line('  ' . str_repeat('─', 40));
         $this->newLine();
 
-        $laravelVersion = app()->version();
+        $laravelVersion = $this->getLaravelVersion();
         $phpVersion = PHP_VERSION;
         $this->line("  Laravel: v{$laravelVersion}");
         $this->line("  PHP:     v{$phpVersion}");
@@ -112,6 +112,15 @@ class BeaconScanCommand extends Command
         $this->newLine();
 
         return self::SUCCESS;
+    }
+
+    private function getLaravelVersion(): string
+    {
+        try {
+            return app()->version();
+        } catch (\Throwable) {
+            return '(unknown)';
+        }
     }
 
     private function formatBytes(int $bytes): string

@@ -6,7 +6,8 @@ namespace Coffesoft\LaravelBeacon\Scanner;
 
 use Coffesoft\LaravelBeacon\Reader\MethodBodyAnalyzer;
 use Coffesoft\LaravelBeacon\Reader\PhpParser;
-use Illuminate\Support\Facades\File;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
 
 /**
  * v6 Improved ControllerScanner — extracts proven controller metadata.
@@ -37,15 +38,17 @@ class ControllerScanner
             return ['controllers' => ['count' => 0, 'items' => []]];
         }
 
-        $files = File::allFiles($path);
+        $files = $this->getPhpFiles($path);
         $items = [];
 
-        foreach ($files as $file) {
-            if ($file->getExtension() !== 'php') {
+        foreach ($files as $entry) {
+            [$fileInfo, $relativePath] = $entry;
+
+            $contents = file_get_contents($fileInfo->getPathname());
+            if ($contents === false) {
                 continue;
             }
 
-            $contents = $file->getContents();
             $parsed = $this->phpParser->parse($contents);
 
             $name = $parsed['class_name'] ?? $this->extractClassName($contents);
@@ -100,9 +103,9 @@ class ControllerScanner
                 'name' => $name,
                 'namespace' => $namespace,
                 'fqcn' => $fqcn,
-                'path' => $file->getRelativePathname(),
+                'path' => $relativePath,
                 'methods' => $methods,
-                'group' => $this->detectGroup($file->getRelativePathname()),
+                'group' => $this->detectGroup($relativePath),
                 'is_crud' => $this->isCrudController($methods),
                 'is_resource' => $this->isResourceController($name),
                 'line_count' => $parsed['line_count'] ?? 0,
@@ -449,6 +452,26 @@ class ControllerScanner
             || !empty($methodAnalysis['resources_returned'])
             || !empty($methodAnalysis['redirects'])
             || !empty($methodAnalysis['database_transactions']);
+    }
+
+    private function getPhpFiles(string $path): array
+    {
+        $result = [];
+        $basePath = rtrim(realpath($path), '/');
+        try {
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS)
+            );
+            foreach ($iterator as $file) {
+                if ($file->isFile() && $file->getExtension() === 'php') {
+                    $relativePath = str_replace($basePath . '/', '', $file->getPathname());
+                    $result[] = [$file, $relativePath];
+                }
+            }
+        } catch (\Throwable) {
+            return [];
+        }
+        return $result;
     }
 
     private function extractClassName(string $contents): ?string

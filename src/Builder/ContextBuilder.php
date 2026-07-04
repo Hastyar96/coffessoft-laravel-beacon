@@ -121,7 +121,7 @@ class ContextBuilder
         $context->merge([
             'framework' => [
                 'name' => 'Laravel',
-                'version' => app()->version(),
+                'version' => $this->getLaravelVersion(),
                 'php_version' => PHP_VERSION,
             ],
             'incremental_scan' => $isIncremental,
@@ -206,7 +206,7 @@ class ContextBuilder
         $this->recordScannedFiles();
 
         // Timestamp
-        $context->set('generated_at', now()->toIso8601String());
+        $context->set('generated_at', date('c'));
         $context->set('beacon_version', '1.0.0');
 
         return $context;
@@ -251,5 +251,14 @@ class ContextBuilder
         }
 
         $this->scanCache->recordScan($files);
+    }
+
+    private function getLaravelVersion(): string
+    {
+        try {
+            return app()->version();
+        } catch (\Throwable) {
+            return '(unknown)';
+        }
     }
 }

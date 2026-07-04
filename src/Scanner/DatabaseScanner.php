@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Coffesoft\LaravelBeacon\Scanner;
 
-use Illuminate\Support\Facades\File;
+use DirectoryIterator;
 
 /**
  * Scans database/migrations to extract detailed schema information:
@@ -25,7 +25,7 @@ class DatabaseScanner
             return ['database' => ['tables' => [], 'pivot_tables' => [], 'total_tables' => 0]];
         }
 
-        $files = File::files($path);
+        $files = $this->getPhpFiles($path);
         $schema = $this->parseMigrations($files);
 
         return [
@@ -41,8 +41,24 @@ class DatabaseScanner
         ];
     }
 
+    private function getPhpFiles(string $path): array
+    {
+        $files = [];
+        try {
+            $iterator = new \FilesystemIterator($path, \FilesystemIterator::SKIP_DOTS);
+            foreach ($iterator as $file) {
+                if ($file->isFile() && $file->getExtension() === 'php') {
+                    $files[] = $file;
+                }
+            }
+        } catch (\Throwable) {
+            return [];
+        }
+        return $files;
+    }
+
     /**
-     * @param array<int, \Symfony\Component\Finder\SplFileInfo> $files
+     * @param array<int, \SplFileInfo> $files
      * @return array<string, mixed>
      */
     private function parseMigrations(array $files): array

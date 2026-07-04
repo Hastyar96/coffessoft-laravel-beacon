@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Coffesoft\LaravelBeacon\Reader;
 
-use Illuminate\Support\Facades\File;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
 
 /**
  * Stream-based file reader for efficient source code scanning.
+ * Uses ONLY native PHP functions - no Laravel facades, no container resolution.
  * Reads files only when needed, keeps memory usage low.
  */
 class FileReader
@@ -15,7 +17,7 @@ class FileReader
     /**
      * Get all PHP files from a directory recursively.
      *
-     * @return array<int, \Symfony\Component\Finder\SplFileInfo>
+     * @return array<int, \SplFileInfo>
      */
     public function getPhpFiles(string $path): array
     {
@@ -24,12 +26,19 @@ class FileReader
         }
 
         $result = [];
-        $files = File::allFiles($path);
 
-        foreach ($files as $file) {
-            if ($file->getExtension() === 'php') {
-                $result[] = $file;
+        try {
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS)
+            );
+
+            foreach ($iterator as $file) {
+                if ($file->isFile() && $file->getExtension() === 'php') {
+                    $result[] = $file;
+                }
             }
+        } catch (\Throwable) {
+            return [];
         }
 
         return $result;

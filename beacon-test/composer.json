@@ -82,5 +82,10 @@
         }
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "repositories": [{
+        "name": "beacon",
+        "type": "path",
+        "url": "/home/hastyar/projects/coffesoft-laravel-beacon"
+    }]
 }
